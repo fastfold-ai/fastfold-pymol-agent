@@ -60,29 +60,11 @@ Use the chat window for long prompts, local file paths, and multi-step workflows
 fastfold ui
 ```
 
-### Referencing local files in chat
-
-- Use the **Insert File Path** button in the UI to inject absolute paths.
-- You can also paste paths manually; keep paths quoted if they contain spaces.
-- Ask explicitly what to do with each file (load, align, style, measure, export).
-
-Examples:
-
-```text
-Load "/Users/you/data/model.cif" as object "pred_cif", show cartoon, color by chain, and center view.
-```
-
-```text
-Load "/Users/you/data/model.pdb" as "ref_pdb", align it to "pred_cif", then highlight residues 45-70 as sticks.
-```
-
-```text
-Load topology "/Users/you/data/protein.pdb" as "traj_top", load trajectory "/Users/you/data/run.dcd", then show RMSD over time and display frame 1 and last frame as cartoons.
-```
-
 ### Combining Fastfold skills + PyMOL edits
 
 Use one request that asks the agent to run a skill workflow and then style/analyze results in PyMOL.
+
+All submitted jobs are visible in your Fastfold dashboard: [https://cloud.fastfold.ai/jobs](https://cloud.fastfold.ai/jobs).
 
 Simple prompt example:
 
@@ -109,6 +91,26 @@ Example (artifact refinement loop):
 
 ```text
 From the latest Fastfold artifact, load structure(s), create publication-style scenes for chain interfaces, and export both a PNG and a PyMOL session file.
+```
+
+### Referencing local files in chat
+
+- Use the **Insert File Path** button in the UI to inject absolute paths.
+- You can also paste paths manually; keep paths quoted if they contain spaces.
+- Ask explicitly what to do with each file (load, align, style, measure, export).
+
+Examples:
+
+```text
+Load "/Users/you/data/model.cif" as object "pred_cif", show cartoon, color by chain, and center view.
+```
+
+```text
+Load "/Users/you/data/model.pdb" as "ref_pdb", align it to "pred_cif", then highlight residues 45-70 as sticks.
+```
+
+```text
+Load topology "/Users/you/data/protein.pdb" as "traj_top", load trajectory "/Users/you/data/run.dcd", then show RMSD over time and display frame 1 and last frame as cartoons.
 ```
 
 ### PDB, CIF, and trajectory editing patterns
