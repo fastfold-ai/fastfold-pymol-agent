@@ -7,14 +7,12 @@ from typing import Any
 CONFIG_PATH = os.path.expanduser("~/.fastfold-pymol-agent.json")
 
 DEFAULTS = {
-    "backend": "lmstudio",
-    "model": "local-model",
-    "base_url": "http://localhost:1234/v1",
+    "backend": "anthropic",
     "max_history": 20,
     "anthropic_model": "claude-sonnet-4-6",
-    "openai_model": "gpt-4o",
+    "anthropic_use_agent_sdk": True,
+    "agent_sdk_max_turns": 30,
     "anthropic_api_key": "",
-    "openai_api_key": "",
     "fastfold_api_key": "",
     "output_dir": "",  # empty = use current working directory
     "skills_enabled": True,
@@ -35,8 +33,12 @@ def _coerce_types(data: dict[str, Any]) -> dict[str, Any]:
     cfg = dict(data)
     if "max_history" in cfg:
         cfg["max_history"] = int(cfg["max_history"])
+    if "agent_sdk_max_turns" in cfg:
+        cfg["agent_sdk_max_turns"] = int(cfg["agent_sdk_max_turns"])
     if "skills_max_chars" in cfg:
         cfg["skills_max_chars"] = int(cfg["skills_max_chars"])
+    if "anthropic_use_agent_sdk" in cfg and isinstance(cfg["anthropic_use_agent_sdk"], str):
+        cfg["anthropic_use_agent_sdk"] = cfg["anthropic_use_agent_sdk"].lower() in ("1", "true", "yes", "on")
     if "skills_enabled" in cfg and isinstance(cfg["skills_enabled"], str):
         cfg["skills_enabled"] = cfg["skills_enabled"].lower() in ("1", "true", "yes", "on")
     if "skills_auto_reload" in cfg and isinstance(cfg["skills_auto_reload"], str):
@@ -72,13 +74,15 @@ def load_config() -> dict[str, Any]:
         data = _read_json(_LEGACY_CONFIG_PATH)
         if "api_key" in data:
             # Best-effort migration from legacy single-key model.
-            if data.get("backend") == "anthropic":
+            if not data.get("anthropic_api_key"):
                 data["anthropic_api_key"] = data["api_key"]
-            elif data.get("backend") == "openai":
-                data["openai_api_key"] = data["api_key"]
             del data["api_key"]
     cfg = dict(DEFAULTS)
-    cfg.update(data)
+    for key, value in data.items():
+        if key in DEFAULTS:
+            cfg[key] = value
+    # Anthropic is the only supported backend for now.
+    cfg["backend"] = "anthropic"
     return _coerce_types(cfg)
 
 

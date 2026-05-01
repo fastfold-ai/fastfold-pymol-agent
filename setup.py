@@ -20,8 +20,8 @@ setup(
     package_dir={"fastfold_pymol_agent": "."},
     python_requires=">=3.8",
     install_requires=[
-        "openai>=1.0.0",
         "anthropic>=0.20.0",
+        "claude-agent-sdk>=0.1.72",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

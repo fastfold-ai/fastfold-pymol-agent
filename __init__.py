@@ -8,7 +8,11 @@ Commands registered in the PyMOL command line:
   fastfold save [filename.py]            save last generated script
   fastfold undo
   fastfold reset
-  fastfold setup lmstudio|openai|anthropic|fastfold [api_key]
+  fastfold setup                          interactive setup for Anthropic + FastFold keys
+  fastfold setup <anthropic_key> <fastfold_key>
+  fastfold setup anthropic <api_key>
+  fastfold setup fastfold <api_key>
+  fastfold doctor
   fastfold config show|set <key> <value>
   fastfold skills list|show|howto|reload|search
   fastfold log show|save|export [filename]
@@ -21,6 +25,7 @@ Short alias:
 from __future__ import annotations
 
 import datetime
+import importlib.util
 import json
 import os
 import shlex
@@ -87,6 +92,9 @@ def _fastfold(*args, **kwargs):
         return
     if verb == "setup":
         _fastfold_setup(rest)
+        return
+    if verb == "doctor":
+        _fastfold_doctor()
         return
     if verb == "config":
         _fastfold_config(rest)
@@ -179,15 +187,12 @@ def _run_prompt(
     system_prompt = SYSTEM_PROMPT
     if skills_context:
         system_prompt = f"{SYSTEM_PROMPT}\n\n{skills_context}"
-    workflow_rules = _build_workflow_rules(prompt, cfg)
-    if workflow_rules:
-        system_prompt = f"{system_prompt}\n\n{workflow_rules}"
 
     messages = [{"role": "system", "content": system_prompt}]
     messages += sess.get_messages()
     messages.append({"role": "user", "content": user_msg})
 
-    backend = cfg.get("backend", "lmstudio")
+    backend = cfg.get("backend", "anthropic")
     if model_override:
         print(f"FastFold Agent [{backend}]: thinking (model: {model_override})...")
     else:
@@ -289,39 +294,6 @@ def _run_prompt(
     sess.log_exchange(prompt, summary, code if code else None)
 
 
-def _build_workflow_rules(prompt: str, cfg: dict) -> str:
-    text = prompt.lower()
-    if not any(k in text for k in _WORKFLOW_KEYWORDS):
-        return ""
-    has_key = bool((cfg.get("fastfold_api_key") or "").strip() or os.environ.get("FASTFOLD_API_KEY"))
-    try:
-        from . import skills as _skills
-
-        fold_skill = _skills.find_skill("fold")
-        fold_skill_dir = (
-            os.path.dirname(fold_skill.path) if fold_skill else os.path.expanduser("~/.fastfold-pymol-agent/skills/fold")
-        )
-    except Exception:
-        fold_skill_dir = os.path.expanduser("~/.fastfold-pymol-agent/skills/fold")
-    scripts_dir = os.path.join(fold_skill_dir, "scripts")
-    return (
-        "## FastFold Workflow Rules (high priority)\n"
-        "- This request appears to be a FastFold workflow request.\n"
-        f"- Use installed fold skill scripts under `{scripts_dir}` for create/wait/results flows.\n"
-        "- For `esm1b`, create the FastFold payload with `params.modelName = \"esm1b\"`.\n"
-        "- For custom webhook requests, set `constraints.webhooks.custom_http.enabled = true`.\n"
-        "- Use FastFold API credentials from `fastfold_api_key` / `FASTFOLD_API_KEY`.\n"
-        "- Do NOT generate code that installs local folding libraries.\n"
-        "- Do NOT use third-party fallback endpoints like `api.esmatlas.com`.\n"
-        + (
-            "- If API key is missing, return plain text asking user to run "
-            "`fastfold setup fastfold <your-api-key>` and stop.\n"
-            if not has_key
-            else ""
-        )
-    ).strip()
-
-
 def _is_fastfold_workflow_prompt(prompt: str) -> bool:
     text = prompt.lower()
     return any(k in text for k in _WORKFLOW_KEYWORDS)
@@ -365,75 +337,107 @@ def _fastfold_reset():
 
 
 # ── setup/config command group ────────────────────────────────────────────────
+def _store_credentials(anthropic_key: str, fastfold_key: str) -> None:
+    from . import config
+
+    config.save_config("backend", "anthropic")
+    config.save_config("anthropic_use_agent_sdk", True)
+    if anthropic_key:
+        config.save_config("anthropic_api_key", anthropic_key)
+        os.environ["ANTHROPIC_API_KEY"] = anthropic_key
+    if fastfold_key:
+        config.save_config("fastfold_api_key", fastfold_key)
+        os.environ["FASTFOLD_API_KEY"] = fastfold_key
+
+
+def _prompt_secret(prompt: str) -> str:
+    try:
+        import getpass
+
+        value = getpass.getpass(prompt)
+    except Exception:
+        value = input(prompt)
+    return (value or "").strip()
+
+
 def _fastfold_setup(tokens: list[str]) -> None:
     from . import config
 
+    cfg = config.load_config()
+    existing_anthropic = (cfg.get("anthropic_api_key") or "").strip()
+    existing_fastfold = (cfg.get("fastfold_api_key") or "").strip()
+
     if not tokens:
-        _print_setup_wizard(first_run=False)
+        print("\nFastFold Agent setup (Anthropic + FastFold API keys)")
+        print("Press Enter to keep existing values.\n")
+        anthropic_key = _prompt_secret("Anthropic API key: ")
+        fastfold_key = _prompt_secret("FastFold API key: ")
+        anthropic_key = anthropic_key or existing_anthropic
+        fastfold_key = fastfold_key or existing_fastfold
+        if not anthropic_key:
+            print("\nFastFold Agent: Anthropic API key is required.")
+            print("Re-run: fastfold setup\n")
+            return
+        if not fastfold_key:
+            print("\nFastFold Agent: FastFold API key is required.")
+            print("Re-run: fastfold setup\n")
+            return
+        _store_credentials(anthropic_key, fastfold_key)
+        print("\nFastFold Agent: setup complete.")
+        print("Run `fastfold doctor` to verify everything.\n")
+        return
+
+    # Non-interactive one-shot: fastfold setup <anthropic_key> <fastfold_key>
+    if (
+        len(tokens) >= 2
+        and tokens[0].lower() not in ("anthropic", "fastfold")
+    ):
+        anthropic_key = tokens[0].strip()
+        fastfold_key = " ".join(tokens[1:]).strip()
+        if not anthropic_key or not fastfold_key:
+            print("Usage: fastfold setup <anthropic_key> <fastfold_key>")
+            return
+        _store_credentials(anthropic_key, fastfold_key)
+        print("\nFastFold Agent: setup complete.")
+        print("Run `fastfold doctor` to verify everything.\n")
         return
 
     target = tokens[0].lower()
     key = tokens[1] if len(tokens) > 1 else ""
 
-    if target == "lmstudio":
-        config.save_config("backend", "lmstudio")
-        print("\n  FastFold Agent: backend set to LM Studio (local)")
-        print(f"  Server URL: {config.get('base_url')}")
-        print("  Optional tweaks:")
-        print("    fastfold config set model <model-name>")
-        print("    fastfold config set base_url <url>\n")
-        print("  Setup complete! Try: fastfold fetch 1hpv and show as cartoon colored by chain")
-        return
-
-    if target == "openai":
-        config.save_config("backend", "openai")
-        if key:
-            config.save_config("openai_api_key", key)
-            print("\n  FastFold Agent: backend set to OpenAI, API key saved.")
-            print(
-                f"  Model: {config.get('openai_model')} "
-                "(fastfold config set openai_model <name>)\n"
-            )
-            print("  Setup complete! Try: fastfold fetch 1hpv and show as cartoon colored by chain")
-        else:
-            print("\n  FastFold Agent: backend set to OpenAI.")
-            print("  Enter your API key: fastfold setup openai <your-api-key>")
-            print("  Get a key at: https://platform.openai.com/api-keys\n")
-        return
-
     if target == "anthropic":
-        config.save_config("backend", "anthropic")
-        if key:
-            config.save_config("anthropic_api_key", key)
-            print("\n  FastFold Agent: backend set to Anthropic, API key saved.")
-            print(
-                f"  Model: {config.get('anthropic_model')} "
-                "(fastfold config set anthropic_model <name>)\n"
-            )
-            print("  Setup complete! Try: fastfold fetch 1hpv and show as cartoon colored by chain")
-        else:
-            print("\n  FastFold Agent: backend set to Anthropic.")
-            print("  Enter your API key: fastfold setup anthropic <your-api-key>")
-            print("  Get a key at: https://console.anthropic.com/settings/keys\n")
+        if not key:
+            print("\nUsage: fastfold setup anthropic <your-api-key>\n")
+            return
+        _store_credentials(key.strip(), existing_fastfold)
+        print("\nFastFold Agent: Anthropic API key saved.")
+        print("Run `fastfold doctor` to verify everything.\n")
         return
 
     if target == "fastfold":
-        if key:
-            config.save_config("fastfold_api_key", key)
-            print("\n  FastFold Agent: FastFold API key saved.")
-            print("  This key will be used by skill-backed workflow integrations.\n")
-        else:
-            print("\n  Usage: fastfold setup fastfold <your-api-key>")
-            print("  Get a key at: https://cloud.fastfold.ai/api-keys\n")
+        if not key:
+            print("\nUsage: fastfold setup fastfold <your-api-key>\n")
+            return
+        _store_credentials(existing_anthropic, key.strip())
+        print("\nFastFold Agent: FastFold API key saved.")
+        print("Run `fastfold doctor` to verify everything.\n")
         return
 
-    print(f"Unknown setup target '{target}'. Choose: lmstudio, openai, anthropic, fastfold")
+    print(
+        f"Unknown setup target '{target}'.\n"
+        "Use one of:\n"
+        "  fastfold setup\n"
+        "  fastfold setup <anthropic_key> <fastfold_key>\n"
+        "  fastfold setup anthropic <key>\n"
+        "  fastfold setup fastfold <key>"
+    )
 
 
 def _print_setup_wizard(first_run: bool = False) -> None:
     from . import config
 
-    current = config.get("backend")
+    has_anthropic = bool((config.get("anthropic_api_key") or "").strip())
+    has_fastfold = bool((config.get("fastfold_api_key") or "").strip())
     if first_run:
         print("")
         print("  ╔══════════════════════════════════════════════════╗")
@@ -441,34 +445,36 @@ def _print_setup_wizard(first_run: bool = False) -> None:
         print("  ║          Natural-language control for PyMOL      ║")
         print("  ╚══════════════════════════════════════════════════╝")
         print("")
-        print("  First-time setup — choose your LLM backend:")
+        print("  First-time setup — configure required API keys:")
     else:
-        print(f"\n  FastFold Agent Setup (current backend: {current})")
+        print("\n  FastFold Agent Setup")
         print("  " + "─" * 48)
-        print("\n  Choose a backend:")
+        print("\n  Configure Anthropic + FastFold API keys:")
 
     print("")
-    print("  1. LM Studio  — local model, no API key needed")
-    print("       fastfold setup lmstudio")
+    print(f"  Anthropic API key: {'configured' if has_anthropic else 'missing'}")
+    print(f"  FastFold API key:  {'configured' if has_fastfold else 'missing'}")
     print("")
-    print("  2. OpenAI  — requires API key")
-    print("       fastfold setup openai <your-api-key>")
+    print("  Run interactive setup:")
+    print("       fastfold setup")
     print("")
-    print("  3. Anthropic  — requires API key")
+    print("  Or non-interactive setup:")
+    print("       fastfold setup <anthropic-key> <fastfold-key>")
+    print("")
+    print("  Update only one key:")
     print("       fastfold setup anthropic <your-api-key>")
-    print("")
-    print("  4. FastFold API key for workflows")
     print("       fastfold setup fastfold <your-api-key>")
     print("")
     print("  ─────────────────────────────────────────────────────")
+    print("  Run `fastfold doctor` after setup to validate everything.")
     print("  Type 'fastfold help' for all commands.")
     print("  Type 'fastfold config show' to view settings.\n")
 
 
 def _parse_config_value(key: str, raw_value: str):
-    if key in ("max_history", "skills_max_chars"):
+    if key in ("max_history", "skills_max_chars", "agent_sdk_max_turns"):
         return int(raw_value)
-    if key in ("skills_enabled", "skills_auto_reload"):
+    if key in ("skills_enabled", "skills_auto_reload", "anthropic_use_agent_sdk"):
         return raw_value.lower() in ("1", "true", "yes", "on")
     if key == "skills_paths":
         return [v.strip() for v in raw_value.split(",") if v.strip()]
@@ -500,8 +506,8 @@ def _fastfold_config(tokens: list[str]) -> None:
         print(f"Unknown config key '{key}'. Valid keys: {valid}")
         return
 
-    if key == "backend" and raw_value not in ("lmstudio", "openai", "anthropic"):
-        print("backend must be one of: lmstudio, openai, anthropic")
+    if key == "backend" and raw_value != "anthropic":
+        print("backend is fixed to: anthropic")
         return
     if key == "sidecar_mode" and raw_value not in ("off", "optional", "required"):
         print("sidecar_mode must be one of: off, optional, required")
@@ -517,6 +523,103 @@ def _fastfold_config(tokens: list[str]) -> None:
     if key == "max_history":
         session.update_max_history(int(value))
     print(f"FastFold Agent: set {key} = {value}")
+
+
+def _fastfold_doctor() -> None:
+    from . import config, skills
+
+    cfg = config.load_config()
+    print("FastFold Agent doctor:")
+
+    failures = 0
+
+    def check(ok: bool, name: str, detail_ok: str = "", detail_fail: str = "") -> None:
+        nonlocal failures
+        status = "OK" if ok else "FAIL"
+        detail = detail_ok if ok else detail_fail
+        print(f"  [{status}] {name}" + (f" — {detail}" if detail else ""))
+        if not ok:
+            failures += 1
+
+    backend = str(cfg.get("backend") or "")
+    check(
+        backend == "anthropic",
+        "Backend",
+        detail_ok="anthropic",
+        detail_fail=f"current value is '{backend}'. Run `fastfold setup`.",
+    )
+
+    anthropic_cfg = (cfg.get("anthropic_api_key") or "").strip()
+    anthropic_env = (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+    check(
+        bool(anthropic_cfg or anthropic_env),
+        "Anthropic API key",
+        detail_ok="configured",
+        detail_fail="missing. Run `fastfold setup`.",
+    )
+
+    fastfold_cfg = (cfg.get("fastfold_api_key") or "").strip()
+    fastfold_env = (os.environ.get("FASTFOLD_API_KEY") or "").strip()
+    check(
+        bool(fastfold_cfg or fastfold_env),
+        "FastFold API key",
+        detail_ok="configured",
+        detail_fail="missing. Run `fastfold setup`.",
+    )
+
+    sdk_enabled = bool(cfg.get("anthropic_use_agent_sdk", True))
+    check(
+        sdk_enabled,
+        "Claude Agent SDK mode",
+        detail_ok="enabled",
+        detail_fail="disabled. Run `fastfold config set anthropic_use_agent_sdk true`.",
+    )
+
+    anthropic_ok = importlib.util.find_spec("anthropic") is not None
+    anthropic_err = "anthropic package not installed"
+    check(
+        anthropic_ok,
+        "anthropic package",
+        detail_ok="importable",
+        detail_fail=f"not importable ({anthropic_err}). Reinstall package.",
+    )
+
+    sdk_pkg_ok = importlib.util.find_spec("claude_agent_sdk") is not None
+    sdk_pkg_err = "claude-agent-sdk package not installed"
+    check(
+        sdk_pkg_ok,
+        "claude-agent-sdk package",
+        detail_ok="importable",
+        detail_fail=f"not importable ({sdk_pkg_err}). Reinstall package.",
+    )
+
+    fold_skill = skills.find_skill("fold")
+    check(
+        fold_skill is not None,
+        "Fold skill discovery",
+        detail_ok="found",
+        detail_fail="missing. Ensure fold skill exists under configured skills_paths.",
+    )
+
+    if fold_skill:
+        fold_dir = os.path.dirname(fold_skill.path)
+        required_scripts = ("create_job.py", "wait_for_completion.py", "download_cif.py")
+        missing = []
+        for script_name in required_scripts:
+            script_path = os.path.join(fold_dir, "scripts", script_name)
+            if not os.path.isfile(script_path):
+                missing.append(script_name)
+        check(
+            not missing,
+            "Fold skill scripts",
+            detail_ok="create/wait/download scripts present",
+            detail_fail=f"missing: {', '.join(missing)}",
+        )
+
+    if failures == 0:
+        print("\nDoctor result: healthy setup.")
+    else:
+        print(f"\nDoctor result: {failures} issue(s) found.")
 
 
 # ── skills command group ──────────────────────────────────────────────────────
@@ -779,10 +882,11 @@ def _print_help() -> None:
         "  fastfold undo                         restore scene before last command\n"
         "  fastfold reset                        clear conversation history and undo state\n"
         "\n"
-        "  fastfold setup lmstudio               switch to LM Studio backend\n"
-        "  fastfold setup openai <key>           switch to OpenAI + set API key\n"
-        "  fastfold setup anthropic <key>        switch to Anthropic + set API key\n"
-        "  fastfold setup fastfold <key>         set FastFold API key\n"
+        "  fastfold setup                        interactive setup for Anthropic + FastFold keys\n"
+        "  fastfold setup <anthropic> <fastfold> non-interactive one-shot setup\n"
+        "  fastfold setup anthropic <key>        update Anthropic API key only\n"
+        "  fastfold setup fastfold <key>         update FastFold API key only\n"
+        "  fastfold doctor                       verify setup health (keys, deps, skills)\n"
         "\n"
         "  fastfold config show                  show current config\n"
         "  fastfold config set <key> <value>     set any config key\n"

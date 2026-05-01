@@ -1,5 +1,7 @@
 import os
 import sys
+import asyncio
+import importlib
 from typing import Callable, Dict, List, Optional
 
 from . import config
@@ -17,14 +19,21 @@ def chat(
     model_override, if given, replaces the configured model for this call only.
     """
     cfg = config.load_config()
-    backend = cfg.get("backend", "lmstudio")
+    backend = cfg.get("backend", "anthropic")
 
-    if backend in ("lmstudio", "openai"):
-        return _openai_chat(messages, cfg, on_token=on_token, model_override=model_override)
-    elif backend == "anthropic":
-        return _anthropic_chat(messages, cfg, on_token=on_token, model_override=model_override)
-    else:
-        raise RuntimeError(f"Unknown backend '{backend}'. Use: lmstudio, openai, anthropic")
+    if backend != "anthropic":
+        raise RuntimeError(
+            f"Unsupported backend '{backend}'. "
+            "FastFold PyMOL Agent currently supports Anthropic only. Run: fastfold setup"
+        )
+    if cfg.get("anthropic_use_agent_sdk", True):
+        return _anthropic_agent_sdk_chat(
+            messages,
+            cfg,
+            on_token=on_token,
+            model_override=model_override,
+        )
+    return _anthropic_chat(messages, cfg, on_token=on_token, model_override=model_override)
 
 
 def _emit(token: str, on_token: Optional[Callable]) -> None:
@@ -36,58 +45,6 @@ def _emit(token: str, on_token: Optional[Callable]) -> None:
         sys.stdout.flush()
 
 
-def _openai_chat(
-    messages: List[Dict[str, str]],
-    cfg: dict,
-    on_token: Optional[Callable] = None,
-    model_override: Optional[str] = None,
-) -> str:
-    try:
-        from openai import OpenAI
-    except ImportError:
-        raise RuntimeError("openai package not installed. Run: pip install openai")
-
-    backend = cfg.get("backend", "lmstudio")
-
-    if backend == "lmstudio":
-        base_url = cfg.get("base_url", "http://localhost:1234/v1")
-        api_key = cfg.get("openai_api_key") or "lm-studio"
-        default_model = cfg.get("model", "local-model")
-    else:
-        base_url = "https://api.openai.com/v1"
-        api_key = (cfg.get("openai_api_key") or "").strip() or os.environ.get("OPENAI_API_KEY", "").strip()
-        default_model = cfg.get("openai_model", "gpt-4o")
-        if not api_key:
-            raise RuntimeError(
-                "OpenAI API key not set. Run: fastfold setup openai <your-key> "
-                "or fastfold config set openai_api_key <your-key>."
-            )
-
-    model = model_override or default_model
-
-    try:
-        client = OpenAI(base_url=base_url, api_key=api_key)
-        stream = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=0.1,
-            max_tokens=2048,
-            stream=True,
-        )
-        chunks: List[str] = []
-        for chunk in stream:
-            delta = chunk.choices[0].delta.content
-            if delta:
-                chunks.append(delta)
-                _emit(delta, on_token)
-        if not on_token:
-            sys.stdout.write("\n")
-            sys.stdout.flush()
-        return "".join(chunks)
-    except Exception as e:
-        raise RuntimeError(f"LLM call failed ({backend}): {e}")
-
-
 def _anthropic_chat(
     messages: List[Dict[str, str]],
     cfg: dict,
@@ -95,14 +52,14 @@ def _anthropic_chat(
     model_override: Optional[str] = None,
 ) -> str:
     try:
-        import anthropic
-    except ImportError:
+        anthropic = importlib.import_module("anthropic")
+    except Exception:
         raise RuntimeError("anthropic package not installed. Run: pip install anthropic")
 
     api_key = (cfg.get("anthropic_api_key", "") or "").strip() or os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError(
-            "Anthropic API key not set. Run: fastfold setup anthropic <your-key> "
+            "Anthropic API key not set. Run: fastfold setup "
             "or fastfold config set anthropic_api_key <your-key>."
         )
 
@@ -145,3 +102,36 @@ def _anthropic_chat(
         return "".join(full_text)
     except Exception as e:
         raise RuntimeError(f"LLM call failed (anthropic): {e}")
+
+
+def _anthropic_agent_sdk_chat(
+    messages: List[Dict[str, str]],
+    cfg: dict,
+    on_token: Optional[Callable] = None,
+    model_override: Optional[str] = None,
+) -> str:
+    api_key = (cfg.get("anthropic_api_key", "") or "").strip() or os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError(
+            "Anthropic API key not set. Run: fastfold setup "
+            "or fastfold config set anthropic_api_key <your-key>."
+        )
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        os.environ["ANTHROPIC_API_KEY"] = api_key
+
+    model = model_override or cfg.get("anthropic_model", "claude-sonnet-4-6")
+    max_turns = int(cfg.get("agent_sdk_max_turns", 30))
+
+    try:
+        from .agent_sdk import run_claude_agent_sdk
+
+        return asyncio.run(
+            run_claude_agent_sdk(
+                messages,
+                model=model,
+                max_turns=max_turns,
+                on_token=on_token,
+            )
+        )
+    except Exception as e:
+        raise RuntimeError(f"LLM call failed (anthropic Claude Agent SDK): {e}")
