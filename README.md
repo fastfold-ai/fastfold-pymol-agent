@@ -16,7 +16,7 @@ Fastfold PyMOL Agent is a PyMOL plugin for biology workflows: run Fastfold skill
 Install the Fastfold agent and PyMOL open source with our standalone installers 
 
 ```bash
-curl -LsSf http://fastfold.ai/pymol-agent/install.sh | sh
+curl -LsSf https://fastfold.ai/pymol-agent/install.sh | sh
 ```
 
 > Note: when PyMOL Open Source is not already installed, this step can take around 5 minutes.
@@ -24,13 +24,13 @@ curl -LsSf http://fastfold.ai/pymol-agent/install.sh | sh
 Install agent only (skip PyMOL install):
 
 ```bash
-curl -LsSf http://fastfold.ai/pymol-agent/install.sh | sh -s -- --agent-only
+curl -LsSf https://fastfold.ai/pymol-agent/install.sh | sh -s -- --agent-only
 ```
 
 Override conda env name:
 
 ```bash
-curl -LsSf http://fastfold.ai/pymol-agent/install.sh | sh -s -- --env-name myenv
+curl -LsSf https://fastfold.ai/pymol-agent/install.sh | sh -s -- --env-name myenv
 ```
 
 Then launch PyMOL:
