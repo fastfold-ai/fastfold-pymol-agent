@@ -2,65 +2,27 @@
 
 Fastfold PyMOL Agent is a PyMOL plugin for biology workflows: run Fastfold skills, bring generated artifacts into PyMOL, and keep iterating with natural-language visualization and analysis.
 
-- Python import: `fastfold_pymol_agent`
-- Main command: `fastfold` (alias: `ff`)
-- Conversational command: `agent <message>`
-- Multiline GUI chat: `fastfold ui`
-- Agent repository: `https://github.com/fastfold-ai/fastfold-pymol-agent.git`
-- Official skills pack: `https://github.com/fastfold-ai/skills/tree/main/skills`
+![Fastfold PyMOL Agent UI](assets/fastfold-ui-demo.png)
 
----
-
-## Requirements
-
-- [PyMOL (open-source)](https://github.com/schrodinger/pymol-open-source) — tested with open-source PyMOL via conda (for example `conda-forge` package: [pymol-open-source](https://anaconda.org/conda-forge/pymol-open-source))
+- Skill-first workflows: discover and run installed Fastfold skills from chat, then immediately load generated structures and artifacts into PyMOL.
+- PyMOL-native agent UX: multiline chat UI, local file references, streaming responses, and iterative structure edits without leaving PyMOL.
+- Built for reusable skills: add skills as folders and use the same interface for fold jobs, MD workflows, and custom script-backed automations.
+- Official skills pack: [fastfold-ai/skills/tree/main/skills](https://github.com/fastfold-ai/skills/tree/main/skills)
 
 ---
 
 ## Quick Install
 
-Works on macOS and Linux (auto-detects platform):
-
-Full install (installs PyMOL + agent):
+Install the Fastfold agent and PyMOL open source with our standalone installers 
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/fastfold-ai/fastfold-pymol-agent/main/scripts/install.sh)
+curl -LsSf http://fastfold.ai/pymol-agent/install.sh | sh
 ```
-
-Agent-only quick install (assumes PyMOL is already installed in env `pymol`):
-
-If PyMOL is not installed yet, follow the official open-source install guide: [schrodinger/pymol-open-source INSTALL](https://github.com/schrodinger/pymol-open-source/blob/master/INSTALL)
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/fastfold-ai/fastfold-pymol-agent/main/scripts/install.sh) -- --agent-only
-```
-
-Agent-only with custom conda env name:
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/fastfold-ai/fastfold-pymol-agent/main/scripts/install.sh) -- --agent-only --env-name myenv
-```
-
-Optional safer flow (download, inspect, run):
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/fastfold-ai/fastfold-pymol-agent/main/scripts/install.sh -o /tmp/fastfold_pymol_install.sh
-less /tmp/fastfold_pymol_install.sh
-bash /tmp/fastfold_pymol_install.sh
-```
-
-This script will:
-
-1. Create/use conda env `pymol` (override with `--env-name <env>`)
-2. Install `fastfold-pymol-agent` (local editable install if available, otherwise from GitHub)
-3. Optionally install PyMOL build dependencies + PyMOL source (full mode)
-4. Update `~/.pymolrc` to auto-load `fastfold_pymol_agent`
-5. Fetch skills from `fastfold-ai/skills` and copy to `~/.fastfold-pymol-agent/skills`
 
 Then launch PyMOL:
 
 ```bash
-conda activate pymol
+conda activate <env_name>
 pymol
 ```
 
@@ -78,7 +40,8 @@ Configure keys and start the agent:
 
 ```text
 fastfold doctor
-fastfold setup <your-anthropic-api-key> <your-fastfold-api-key>
+fastfold setup anthropic <your-anthropic-api-key>
+fastfold setup fastfold <your-fastfold-api-key>
 fastfold ui
 ```
 
@@ -86,13 +49,6 @@ Where to get keys:
 
 - Fastfold API key: [https://cloud.fastfold.ai/api-keys](https://cloud.fastfold.ai/api-keys)
 - Anthropic API key: [https://platform.claude.com/dashboard](https://platform.claude.com/dashboard)
-
-Or set keys individually:
-
-```text
-fastfold setup anthropic <your-anthropic-api-key>
-fastfold setup fastfold <your-fastfold-api-key>
-```
 
 ---
 
@@ -257,3 +213,4 @@ fastfold skills reload
 ## Inspired by
 
 - [KodyKlupt/PromptMOL](https://github.com/KodyKlupt/PromptMOL)
+- [colbyford/PyMOLfold](https://github.com/colbyford/PyMOLfold)

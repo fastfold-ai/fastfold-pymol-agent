@@ -1,118 +1,91 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env sh
 
-# One-shot installer for macOS/Linux:
-# 1) Build/install PyMOL open-source (local checkout or temporary clone)
-# 2) Install fastfold-pymol-agent in the same conda env (local editable or git URL)
-# 3) Configure ~/.pymolrc to auto-load the plugin
+# Re-exec with bash so this supports:
+#   curl -LsSf .../install.sh | sh
+if [ -z "${BASH_VERSION:-}" ]; then
+  if ! command -v bash >/dev/null 2>&1; then
+    echo "Error: bash is required to run this installer." >&2
+    exit 1
+  fi
 
-ENV_NAME="pymol"
-PYMOL_SRC_DEFAULT="../pymol-open-source"
-FASTFOLD_REPO_DEFAULT="."
-PYMOL_REPO_URL_DEFAULT="https://github.com/schrodinger/pymol-open-source.git"
-PYMOL_REPO_REF_DEFAULT=""
-AGENT_REPO_URL_DEFAULT="https://github.com/fastfold-ai/fastfold-pymol-agent.git"
-AGENT_REPO_REF_DEFAULT="main"
-SKILLS_SRC_DEFAULT=""
-SKILLS_REPO_URL_DEFAULT="https://github.com/fastfold-ai/skills.git"
-SKILLS_REPO_BRANCH_DEFAULT="main"
-SKILLS_REPO_SUBDIR_DEFAULT="skills"
-COPY_SKILLS="yes"
-AGENT_ONLY="no"
-
-usage() {
-  cat <<'EOF'
-Usage:
-  bash ./scripts/install.sh [options]
-
-Options:
-  --env-name <name>          Conda env name (default: pymol)
-  --pymol-src <path>         Local path to pymol-open-source checkout (optional)
-  --pymol-repo-url <url>     PyMOL git repo URL fallback (default: schrodinger/pymol-open-source)
-  --pymol-repo-ref <ref>     PyMOL git branch/tag/commit fallback (default: repo default branch)
-  --agent-repo <path>        Local path to fastfold-pymol-agent repo (optional, editable install)
-  --agent-repo-url <url>     Agent git repo fallback (default: fastfold-ai/fastfold-pymol-agent.git)
-  --agent-repo-ref <ref>     Agent git branch/tag/commit fallback (default: main)
-  --agent-only               Install only fastfold-pymol-agent (assumes PyMOL already installed)
-  --skills-src <path>        Local skills folder override (default: fetch from GitHub)
-  --skills-repo-url <url>    Skills git repo URL (default: https://github.com/fastfold-ai/skills.git)
-  --skills-repo-branch <b>   Skills git branch/tag (default: main)
-  --skills-repo-subdir <d>   Skills subdir in repo (default: skills)
-  --no-copy-skills           Skip copying skills into ~/.fastfold-pymol-agent/skills
-  -h, --help                 Show this help
-
-Example:
-  bash ./scripts/install.sh \
-    --pymol-src ../pymol-open-source \
-    --agent-repo .
-EOF
-}
-
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --env-name)
-      ENV_NAME="${2:-}"
-      shift 2
-      ;;
-    --pymol-src)
-      PYMOL_SRC_DEFAULT="${2:-}"
-      shift 2
-      ;;
-    --pymol-repo-url)
-      PYMOL_REPO_URL_DEFAULT="${2:-}"
-      shift 2
-      ;;
-    --pymol-repo-ref)
-      PYMOL_REPO_REF_DEFAULT="${2:-}"
-      shift 2
-      ;;
-    --agent-repo)
-      FASTFOLD_REPO_DEFAULT="${2:-}"
-      shift 2
-      ;;
-    --agent-repo-url)
-      AGENT_REPO_URL_DEFAULT="${2:-}"
-      shift 2
-      ;;
-    --agent-repo-ref)
-      AGENT_REPO_REF_DEFAULT="${2:-}"
-      shift 2
-      ;;
-    --agent-only)
-      AGENT_ONLY="yes"
-      shift 1
-      ;;
-    --skills-src)
-      SKILLS_SRC_DEFAULT="${2:-}"
-      shift 2
-      ;;
-    --skills-repo-url)
-      SKILLS_REPO_URL_DEFAULT="${2:-}"
-      shift 2
-      ;;
-    --skills-repo-branch)
-      SKILLS_REPO_BRANCH_DEFAULT="${2:-}"
-      shift 2
-      ;;
-    --skills-repo-subdir)
-      SKILLS_REPO_SUBDIR_DEFAULT="${2:-}"
-      shift 2
-      ;;
-    --no-copy-skills)
-      COPY_SKILLS="no"
-      shift 1
-      ;;
-    -h|--help)
-      usage
-      exit 0
+  case "${0:-}" in
+    sh|dash|-sh|-dash|*/sh|*/dash)
+      _ff_tmp_script="$(mktemp)"
+      cat > "${_ff_tmp_script}"
+      exec bash "${_ff_tmp_script}" "$@"
       ;;
     *)
-      echo "Unknown option: $1" >&2
-      usage
-      exit 1
+      exec bash "$0" "$@"
       ;;
   esac
-done
+fi
+
+set -euo pipefail
+
+# Guided installer (interactive, no CLI options).
+if [[ $# -gt 0 ]]; then
+  echo "This installer is interactive and does not accept CLI options." >&2
+  echo "Run it like: curl -LsSf http://fastfold.ai/pymol-agent/install.sh | sh" >&2
+  exit 1
+fi
+
+PYMOL_REPO_URL="https://github.com/schrodinger/pymol-open-source.git"
+AGENT_REPO_URL="https://github.com/fastfold-ai/fastfold-pymol-agent.git"
+AGENT_REPO_REF="main"
+SKILLS_REPO_URL="https://github.com/fastfold-ai/skills.git"
+SKILLS_REPO_BRANCH="main"
+SKILLS_REPO_SUBDIR="skills"
+
+ensure_tty_input() {
+  if [[ ! -t 0 ]]; then
+    if [[ -r /dev/tty ]]; then
+      exec < /dev/tty
+    else
+      echo "Error: interactive installer requires a TTY." >&2
+      exit 1
+    fi
+  fi
+}
+
+prompt_default() {
+  local label="$1"
+  local default="$2"
+  local value=""
+  read -r -p "${label} [${default}]: " value || true
+  if [[ -z "${value// }" ]]; then
+    printf "%s" "${default}"
+  else
+    printf "%s" "${value}"
+  fi
+}
+
+prompt_yes_no() {
+  local prompt="$1"
+  local default="$2" # y|n
+  local hint=""
+  local answer=""
+  if [[ "${default}" == "y" ]]; then
+    hint="[Y/n]"
+  else
+    hint="[y/N]"
+  fi
+  while true; do
+    read -r -p "${prompt} ${hint} " answer || true
+    answer="${answer:-$default}"
+    case "${answer,,}" in
+      y|yes) return 0 ;;
+      n|no) return 1 ;;
+      *) echo "Please answer y or n." ;;
+    esac
+  done
+}
+
+require_git() {
+  if ! command -v git >/dev/null 2>&1; then
+    echo "Error: git is required for this step." >&2
+    exit 1
+  fi
+}
 
 OS_NAME="$(uname -s)"
 OS_ARCH="$(uname -m)"
@@ -134,6 +107,35 @@ if ! command -v conda >/dev/null 2>&1; then
   exit 1
 fi
 
+ensure_tty_input
+
+echo ""
+echo "Fastfold PyMOL Agent Installer"
+echo "Choose install mode:"
+echo "  1) Full install (default): PyMOL open-source + Fastfold PyMOL Agent"
+echo "  2) Agent-only: Fastfold PyMOL Agent only (PyMOL must already be installed)"
+echo ""
+
+INSTALL_MODE="full"
+while true; do
+  read -r -p "Install mode [1/2] (default 1): " MODE_CHOICE || true
+  MODE_CHOICE="${MODE_CHOICE:-1}"
+  case "${MODE_CHOICE}" in
+    1) INSTALL_MODE="full"; break ;;
+    2) INSTALL_MODE="agent-only"; break ;;
+    *) echo "Please choose 1 or 2." ;;
+  esac
+done
+
+ENV_NAME="$(prompt_default "Conda environment name" "pymol")"
+
+INSTALL_SKILLS="yes"
+if prompt_yes_no "Install official Fastfold skills pack?" "y"; then
+  INSTALL_SKILLS="yes"
+else
+  INSTALL_SKILLS="no"
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
@@ -150,34 +152,22 @@ cleanup() {
 }
 trap cleanup EXIT
 
-PYMOL_SRC=""
-if [[ "${AGENT_ONLY}" != "yes" && -n "${PYMOL_SRC_DEFAULT}" ]]; then
-  PYMOL_SRC="$(cd "${REPO_ROOT}" && cd "${PYMOL_SRC_DEFAULT}" 2>/dev/null && pwd || true)"
-fi
-AGENT_REPO=""
-if [[ -n "${FASTFOLD_REPO_DEFAULT}" ]]; then
-  AGENT_REPO="$(cd "${FASTFOLD_REPO_DEFAULT}" 2>/dev/null && pwd || true)"
-fi
-SKILLS_SRC=""
-if [[ -n "${SKILLS_SRC_DEFAULT}" ]]; then
-  SKILLS_SRC="$(cd "${REPO_ROOT}" && cd "${SKILLS_SRC_DEFAULT}" 2>/dev/null && pwd || true)"
+LOCAL_AGENT_REPO=""
+if [[ -f "${REPO_ROOT}/setup.py" ]]; then
+  LOCAL_AGENT_REPO="${REPO_ROOT}"
 fi
 
-if [[ "${AGENT_ONLY}" != "yes" ]]; then
-  if [[ -z "${PYMOL_SRC}" || ! -f "${PYMOL_SRC}/setup.py" ]]; then
-    if ! command -v git >/dev/null 2>&1; then
-      echo "Error: git is required to fetch PyMOL source." >&2
-      echo "Either install git or pass --pymol-src <path-to-pymol-open-source>." >&2
-      exit 1
-    fi
+PYMOL_SRC=""
+if [[ "${INSTALL_MODE}" == "full" ]]; then
+  LOCAL_PYMOL_SRC="$(cd "${REPO_ROOT}" && cd "../pymol-open-source" 2>/dev/null && pwd || true)"
+  if [[ -n "${LOCAL_PYMOL_SRC}" && -f "${LOCAL_PYMOL_SRC}/setup.py" ]]; then
+    PYMOL_SRC="${LOCAL_PYMOL_SRC}"
+  else
+    require_git
     TMP_PYMOL_DIR="$(mktemp -d)"
     CLEANUP_PATHS+=("${TMP_PYMOL_DIR}")
-    echo "==> Fetching PyMOL source from ${PYMOL_REPO_URL_DEFAULT}"
-    if [[ -n "${PYMOL_REPO_REF_DEFAULT}" ]]; then
-      git clone --depth 1 --branch "${PYMOL_REPO_REF_DEFAULT}" "${PYMOL_REPO_URL_DEFAULT}" "${TMP_PYMOL_DIR}/repo"
-    else
-      git clone --depth 1 "${PYMOL_REPO_URL_DEFAULT}" "${TMP_PYMOL_DIR}/repo"
-    fi
+    echo "==> Fetching PyMOL source from ${PYMOL_REPO_URL}"
+    git clone --depth 1 "${PYMOL_REPO_URL}" "${TMP_PYMOL_DIR}/repo"
     PYMOL_SRC="${TMP_PYMOL_DIR}/repo"
   fi
 
@@ -188,20 +178,20 @@ if [[ "${AGENT_ONLY}" != "yes" ]]; then
 fi
 
 AGENT_INSTALL_MODE="local"
-if [[ -z "${AGENT_REPO}" || ! -f "${AGENT_REPO}/setup.py" ]]; then
+if [[ -z "${LOCAL_AGENT_REPO}" || ! -f "${LOCAL_AGENT_REPO}/setup.py" ]]; then
   AGENT_INSTALL_MODE="git"
 fi
 
 echo "==> Using conda env: ${ENV_NAME}"
-if [[ "${AGENT_ONLY}" == "yes" ]]; then
-  echo "==> Mode:            agent-only (skip PyMOL build/install)"
+if [[ "${INSTALL_MODE}" == "agent-only" ]]; then
+  echo "==> Mode:            agent-only"
 else
   echo "==> PyMOL source:    ${PYMOL_SRC}"
 fi
 if [[ "${AGENT_INSTALL_MODE}" == "local" ]]; then
-  echo "==> Agent source:    ${AGENT_REPO} (editable)"
+  echo "==> Agent source:    ${LOCAL_AGENT_REPO} (editable)"
 else
-  echo "==> Agent source:    ${AGENT_REPO_URL_DEFAULT}@${AGENT_REPO_REF_DEFAULT}"
+  echo "==> Agent source:    ${AGENT_REPO_URL}@${AGENT_REPO_REF}"
 fi
 
 eval "$(conda shell.bash hook)"
@@ -217,7 +207,7 @@ conda activate "${ENV_NAME}"
 
 python -m pip install --upgrade pip setuptools wheel
 
-if [[ "${AGENT_ONLY}" != "yes" ]]; then
+if [[ "${INSTALL_MODE}" == "full" ]]; then
   echo "==> Installing PyMOL build dependencies"
   conda install -y -c conda-forge glew glm libpng freetype libxml2 libnetcdf pyqt
 
@@ -227,41 +217,35 @@ fi
 
 if [[ "${AGENT_INSTALL_MODE}" == "local" ]]; then
   echo "==> Installing fastfold-pymol-agent (editable)"
-  python -m pip install -e "${AGENT_REPO}"
+  python -m pip install -e "${LOCAL_AGENT_REPO}"
 else
-  if ! command -v git >/dev/null 2>&1; then
-    echo "Error: git is required to install fastfold-pymol-agent from GitHub." >&2
-    echo "Either install git or pass --agent-repo <local-path>." >&2
-    exit 1
-  fi
+  require_git
   echo "==> Installing fastfold-pymol-agent from git"
-  python -m pip install "git+${AGENT_REPO_URL_DEFAULT}@${AGENT_REPO_REF_DEFAULT}"
+  python -m pip install "git+${AGENT_REPO_URL}@${AGENT_REPO_REF}"
 fi
 
-if [[ "${AGENT_ONLY}" == "yes" ]]; then
+if [[ "${INSTALL_MODE}" == "agent-only" ]]; then
   if ! python -c "import pymol" >/dev/null 2>&1; then
     echo "Error: PyMOL is not importable in conda env '${ENV_NAME}'." >&2
-    echo "Use full installer mode (without --agent-only) or install PyMOL first." >&2
+    echo "Re-run installer and choose full install, or install PyMOL in this env first." >&2
     exit 1
   fi
 fi
 
-if [[ "${COPY_SKILLS}" == "yes" ]]; then
+if [[ "${INSTALL_SKILLS}" == "yes" ]]; then
   RESOLVED_SKILLS_SRC=""
-  if [[ -n "${SKILLS_SRC}" && -d "${SKILLS_SRC}" ]]; then
-    RESOLVED_SKILLS_SRC="${SKILLS_SRC}"
+  LOCAL_SKILLS_SRC="$(cd "${REPO_ROOT}" && cd "../fastfold-skills/skills" 2>/dev/null && pwd || true)"
+  if [[ -n "${LOCAL_SKILLS_SRC}" && -d "${LOCAL_SKILLS_SRC}" ]]; then
+    RESOLVED_SKILLS_SRC="${LOCAL_SKILLS_SRC}"
   else
-    if ! command -v git >/dev/null 2>&1; then
-      echo "Error: git is required to fetch skills from ${SKILLS_REPO_URL_DEFAULT}" >&2
-      exit 1
-    fi
+    require_git
     TMP_SKILLS_DIR="$(mktemp -d)"
     CLEANUP_PATHS+=("${TMP_SKILLS_DIR}")
-    echo "==> Fetching skills from ${SKILLS_REPO_URL_DEFAULT} (${SKILLS_REPO_BRANCH_DEFAULT})"
-    git clone --depth 1 --branch "${SKILLS_REPO_BRANCH_DEFAULT}" "${SKILLS_REPO_URL_DEFAULT}" "${TMP_SKILLS_DIR}/repo"
-    RESOLVED_SKILLS_SRC="${TMP_SKILLS_DIR}/repo/${SKILLS_REPO_SUBDIR_DEFAULT}"
+    echo "==> Fetching skills from ${SKILLS_REPO_URL} (${SKILLS_REPO_BRANCH})"
+    git clone --depth 1 --branch "${SKILLS_REPO_BRANCH}" "${SKILLS_REPO_URL}" "${TMP_SKILLS_DIR}/repo"
+    RESOLVED_SKILLS_SRC="${TMP_SKILLS_DIR}/repo/${SKILLS_REPO_SUBDIR}"
     if [[ ! -d "${RESOLVED_SKILLS_SRC}" ]]; then
-      echo "Error: skills subdir '${SKILLS_REPO_SUBDIR_DEFAULT}' not found in fetched repo." >&2
+      echo "Error: skills subdir '${SKILLS_REPO_SUBDIR}' not found in fetched repo." >&2
       exit 1
     fi
   fi
