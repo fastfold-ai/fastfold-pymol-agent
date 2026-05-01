@@ -68,6 +68,7 @@ Install directly from URL in PyMOL:
 2. In **Install from PyMOLWiki or any URL**, paste:
    `https://github.com/fastfold-ai/fastfold-pymol-agent/releases/latest/download/fastfold-pymol-agent-plugin.zip`
 3. Click **Fetch** and confirm install.
+   - Please wait for install to finish. PyMOL may appear unresponsive during this step (PyMOL limitation), because plugin installation runs on the same UI thread.
 4. Open the plugin from the Plugins menu.
 5. In the PyMOL command line, install required Python dependencies once:
 
