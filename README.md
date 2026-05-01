@@ -19,6 +19,8 @@ Install the Fastfold agent and PyMOL open source with our standalone installers
 curl -LsSf https://fastfold.ai/pymol-agent/install.sh | sh
 ```
 
+If you already have commercial PyMOL installed, skip to [Commercial PyMOL: plugin zip install](#commercial-pymol-plugin-zip-install).
+
 > Note: when PyMOL Open Source is not already installed, this step can take around 5 minutes.
 
 Install agent only (skip PyMOL install):
