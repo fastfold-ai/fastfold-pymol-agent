@@ -63,7 +63,14 @@ def _anthropic_chat(
             "or fastfold config set anthropic_api_key <your-key>."
         )
 
-    model = model_override or cfg.get("anthropic_model", "claude-sonnet-4-6")
+    model = model_override or cfg.get("anthropic_model", config.DEFAULT_ANTHROPIC_MODEL)
+    if model not in config.SUPPORTED_ANTHROPIC_MODELS:
+        allowed = ", ".join(config.SUPPORTED_ANTHROPIC_MODELS)
+        raise RuntimeError(
+            f"Unsupported Anthropic model '{model}'. "
+            f"Allowed models: {allowed}. "
+            "Update with: fastfold config set anthropic_model <model-id>"
+        )
 
     # Separate the system message — Anthropic takes it as a distinct param.
     # Wrap it with cache_control so the large system prompt is cached server-side
@@ -119,7 +126,14 @@ def _anthropic_agent_sdk_chat(
     if not os.environ.get("ANTHROPIC_API_KEY"):
         os.environ["ANTHROPIC_API_KEY"] = api_key
 
-    model = model_override or cfg.get("anthropic_model", "claude-sonnet-4-6")
+    model = model_override or cfg.get("anthropic_model", config.DEFAULT_ANTHROPIC_MODEL)
+    if model not in config.SUPPORTED_ANTHROPIC_MODELS:
+        allowed = ", ".join(config.SUPPORTED_ANTHROPIC_MODELS)
+        raise RuntimeError(
+            f"Unsupported Anthropic model '{model}'. "
+            f"Allowed models: {allowed}. "
+            "Update with: fastfold config set anthropic_model <model-id>"
+        )
     max_turns = int(cfg.get("agent_sdk_max_turns", 30))
 
     try:

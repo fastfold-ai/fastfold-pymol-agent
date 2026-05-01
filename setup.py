@@ -9,8 +9,8 @@ except OSError:
 
 setup(
     name="fastfold-pymol-agent",
-    version="0.1.0",
-    description="Fastfold-branded natural-language agent for PyMOL",
+    version="1.0.0",
+    description="PyMOL plugin to run Fastfold workflows and analyze structures with an in-app AI agent.",
     long_description=LONG_DESCRIPTION,
     long_description_content_type="text/markdown",
     author="Fastfold AI",

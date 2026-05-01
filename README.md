@@ -19,6 +19,8 @@ Install the Fastfold agent and PyMOL open source with our standalone installers
 curl -LsSf http://fastfold.ai/pymol-agent/install.sh | sh
 ```
 
+> Note: when PyMOL Open Source is not already installed, this step can take around 5 minutes.
+
 Install agent only (skip PyMOL install):
 
 ```bash
@@ -44,6 +46,16 @@ This opens the PyMOL UI. Then follow the **First run in PyMOL** section below to
 fastfold help
 ```
 
+### Upgrade an existing install
+
+If you already installed the plugin and want the latest version from GitHub, run this inside PyMOL:
+
+```text
+fastfold upgrade
+```
+
+Then restart PyMOL to load the updated plugin.
+
 ---
 
 ## First run in PyMOL
@@ -61,6 +73,40 @@ Where to get keys:
 
 - Fastfold API key: [https://cloud.fastfold.ai/api-keys](https://cloud.fastfold.ai/api-keys)
 - Anthropic API key: [https://platform.claude.com/dashboard](https://platform.claude.com/dashboard)
+
+### Model selection
+
+Fastfold PyMOL Agent defaults to `claude-haiku-4-5` (fastest profile from the Anthropic model lineup).
+
+To change the base Anthropic model:
+
+```text
+fastfold config set anthropic_model <model-name>
+```
+
+Model validation is enforced: only model IDs/aliases from Anthropic's models overview are accepted.
+
+Recommended model options:
+
+| Feature | Claude Opus 4.7 | Claude Sonnet 4.6 | Claude Haiku 4.5 |
+| --- | --- | --- | --- |
+| Claude API alias | `claude-opus-4-7` | `claude-sonnet-4-6` | `claude-haiku-4-5` |
+| Extended thinking | No | Yes | Yes |
+| Adaptive thinking | Yes | Yes | No |
+| Comparative latency | Moderate | Fast | Fastest |
+
+Examples:
+
+```text
+fastfold config set anthropic_model claude-haiku-4-5
+fastfold config set anthropic_model claude-sonnet-4-6
+```
+
+Check current settings anytime:
+
+```text
+fastfold config show
+```
 
 ---
 
@@ -168,10 +214,12 @@ fastfold setup
 fastfold setup <anthropic> <fastfold>
 fastfold setup anthropic <key>
 fastfold setup fastfold <key>
+fastfold upgrade
 fastfold doctor
 
 fastfold config show
 fastfold config set <key> <value>
+fastfold config set anthropic_model <model-name>
 ```
 
 ### Skills and logs

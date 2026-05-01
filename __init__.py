@@ -14,6 +14,7 @@ Commands registered in the PyMOL command line:
   fastfold setup <anthropic_key> <fastfold_key>
   fastfold setup anthropic <api_key>
   fastfold setup fastfold <api_key>
+  fastfold upgrade                        upgrade installed agent from GitHub
   fastfold doctor
   fastfold agent on|off|status
   fastfold config show|set <key> <value>
@@ -33,6 +34,8 @@ import json
 import os
 import shlex
 import re
+import subprocess
+import sys
 from typing import Optional
 
 # ── Module-level state ────────────────────────────────────────────────────────
@@ -110,6 +113,9 @@ def _fastfold(*args, **kwargs):
         return
     if verb == "setup":
         _fastfold_setup(rest)
+        return
+    if verb == "upgrade":
+        _fastfold_upgrade(rest)
         return
     if verb == "ui":
         _fastfold_ui()
@@ -520,6 +526,43 @@ def _fastfold_setup(tokens: list[str]) -> None:
     )
 
 
+def _fastfold_upgrade(tokens: list[str]) -> None:
+    if tokens:
+        print("Usage: fastfold upgrade")
+        return
+
+    package_ref = "git+https://github.com/fastfold-ai/fastfold-pymol-agent.git"
+    cmd = [sys.executable, "-m", "pip", "install", "--upgrade", package_ref]
+    print("Fastfold Agent: upgrading from GitHub...")
+    print(f"  Python:  {sys.executable}")
+    print(f"  Command: {' '.join(cmd)}")
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception as e:
+        print(f"Fastfold Agent: upgrade failed to start — {e}")
+        print("Manual fallback:")
+        print(f"  {' '.join(cmd)}")
+        return
+
+    if result.stdout.strip():
+        print(result.stdout.strip())
+    if result.stderr.strip():
+        print(result.stderr.strip())
+
+    if result.returncode == 0:
+        print("\nFastfold Agent: upgrade complete.")
+        print("Restart PyMOL to load the updated plugin version.")
+    else:
+        print(f"\nFastfold Agent: upgrade failed (exit code {result.returncode}).")
+        print("Retry the same command manually:")
+        print(f"  {' '.join(cmd)}")
+
+
 def _print_setup_wizard(first_run: bool = False) -> None:
     from . import config
 
@@ -596,6 +639,15 @@ def _fastfold_config(tokens: list[str]) -> None:
     if key == "backend" and raw_value != "anthropic":
         print("backend is fixed to: anthropic")
         return
+    if key == "anthropic_model":
+        model = raw_value.strip()
+        if model not in config.SUPPORTED_ANTHROPIC_MODELS:
+            print(f"Invalid anthropic_model '{model}'.")
+            print("Allowed values:")
+            for allowed in config.SUPPORTED_ANTHROPIC_MODELS:
+                print(f"  - {allowed}")
+            return
+        raw_value = model
     if key == "sidecar_mode" and raw_value not in ("off", "optional", "required"):
         print("sidecar_mode must be one of: off, optional, required")
         return
@@ -634,6 +686,17 @@ def _fastfold_doctor() -> None:
         "Backend",
         detail_ok="anthropic",
         detail_fail=f"current value is '{backend}'. Run `fastfold setup`.",
+    )
+
+    anthropic_model = str(cfg.get("anthropic_model") or "").strip()
+    check(
+        anthropic_model in config.SUPPORTED_ANTHROPIC_MODELS,
+        "Anthropic model",
+        detail_ok=anthropic_model,
+        detail_fail=(
+            f"'{anthropic_model}' is not in the allowed model list. "
+            "Run `fastfold config set anthropic_model <model-id>`."
+        ),
     )
 
     anthropic_cfg = (cfg.get("anthropic_api_key") or "").strip()
@@ -974,11 +1037,13 @@ def _print_help() -> None:
         "  fastfold setup <anthropic> <fastfold> non-interactive one-shot setup\n"
         "  fastfold setup anthropic <key>        update Anthropic key\n"
         "  fastfold setup fastfold <key>         update Fastfold key\n"
+        "  fastfold upgrade                      upgrade installed agent from GitHub\n"
         "  fastfold doctor                       verify setup health (keys, deps, skills)\n"
         "  fastfold agent on|off|status          toggle/show agent mode\n"
         "\n"
         "  fastfold config show                  show current config\n"
         "  fastfold config set <key> <value>     set any config key\n"
+        "  fastfold config set anthropic_model <model-id>  set base Anthropic model\n"
         "\n"
         "  fastfold skills list                  list discovered skills\n"
         "  fastfold skills show <name>           show skill details\n"

@@ -1,6 +1,17 @@
 from __future__ import annotations
 
+import datetime
+import json
+import os
 from typing import Callable, Optional
+
+EXAMPLE_PROMPT_TEXT = (
+    "Use esm1b in Fastfold to run a fold job.\n\n"
+    "Use these sequences:\n"
+    "Sequence 1 (protein): "
+    "MGLSDGEWQLVLNVWGKVEADIPGHGQEVLIRLFKGHPETLERFDKFKHLKSEDEMKASEDLKKHGATVLTALGGILKKKGHHEAEIKPLAQSHATKHKIPVKYLEFISECIIQVLQSKHPGDFGADAQRAMNKALELFRKDMASNYKELGFQG "
+    "and show the prediction as cartoon colored by secondary structure."
+)
 
 
 class _MissingQtError(RuntimeError):
@@ -24,15 +35,22 @@ def _qt():
 class FastfoldAgentDialog:
     def __init__(self, run_prompt: Callable[..., None]):
         QtCore, QtGui, QtWidgets = _qt()
+        from . import config, session, skills
+
         self._QtCore = QtCore
         self._QtGui = QtGui
         self._QtWidgets = QtWidgets
+        self._config = config
+        self._session = session
+        self._skills = skills
         self._run_prompt = run_prompt
         self._is_running = False
         self._stream_started = False
         self._phase_text = "Idle"
         self._spinner_index = 0
         self._token_buffer: list[str] = []
+        self._transcript_blocks: list[str] = []
+        self._active_agent_markdown: Optional[str] = None
         self._worker = None
         self._worker_thread = None
 
@@ -42,17 +60,50 @@ class FastfoldAgentDialog:
 
         root = QtWidgets.QVBoxLayout(self.widget)
 
-        help_label = QtWidgets.QLabel(
-            "Use multiline prompts and send with Ctrl+Enter. "
-            "This input avoids PyMOL parser SyntaxErrors from bare text."
-        )
-        help_label.setWordWrap(True)
-        root.addWidget(help_label)
+        model_row = QtWidgets.QHBoxLayout()
+        model_row.addWidget(QtWidgets.QLabel("Model:"))
 
-        self.output = QtWidgets.QPlainTextEdit()
+        self.model_combo = QtWidgets.QComboBox()
+        model_options = list(self._config.SUPPORTED_ANTHROPIC_MODELS)
+        current_model = str(
+            self._config.get("anthropic_model") or self._config.DEFAULT_ANTHROPIC_MODEL
+        ).strip()
+        if current_model and current_model not in model_options:
+            model_options.insert(0, current_model)
+        self.model_combo.blockSignals(True)
+        self.model_combo.addItems(model_options)
+        if current_model:
+            index = self.model_combo.findText(current_model)
+            if index >= 0:
+                self.model_combo.setCurrentIndex(index)
+        self.model_combo.blockSignals(False)
+        self.model_combo.currentTextChanged.connect(self._on_model_changed)
+        model_row.addWidget(self.model_combo)
+
+        model_row.addStretch(1)
+
+        self.skills_btn = QtWidgets.QPushButton("Skills (0)")
+        self.skills_btn.clicked.connect(self._on_show_skills)
+        model_row.addWidget(self.skills_btn)
+
+        self.export_combo = QtWidgets.QComboBox()
+        self.export_combo.addItems(
+            [
+                "Export actions",
+                "Export chat session (.json)",
+                "Save session script (.py)",
+                "Save last generated script (.py)",
+            ]
+        )
+        self.export_combo.setCurrentIndex(0)
+        self.export_combo.currentIndexChanged.connect(self._on_export_selected)
+        model_row.addWidget(self.export_combo)
+
+        root.addLayout(model_row)
+        self._refresh_skills_indicator(force_reload=False)
+
+        self.output = QtWidgets.QTextBrowser()
         self.output.setReadOnly(True)
-        # Keep the UI responsive in long sessions by trimming old output blocks.
-        self.output.document().setMaximumBlockCount(4000)
         root.addWidget(self.output, stretch=2)
 
         self.input = QtWidgets.QPlainTextEdit()
@@ -86,6 +137,9 @@ class FastfoldAgentDialog:
         button_row.addWidget(self.status)
 
         button_row.addStretch(1)
+        self.example_btn = QtWidgets.QPushButton("Example")
+        self.example_btn.clicked.connect(self._insert_example_prompt)
+        button_row.addWidget(self.example_btn)
         root.addLayout(button_row)
 
         shortcut_cls = getattr(QtWidgets, "QShortcut", None) or getattr(QtGui, "QShortcut", None)
@@ -110,16 +164,38 @@ class FastfoldAgentDialog:
         self._status_timer.timeout.connect(self._update_running_status)
 
     def show(self) -> None:
+        self._refresh_skills_indicator(force_reload=False)
         self.widget.show()
         self.widget.raise_()
         self.widget.activateWindow()
 
     def _append(self, text: str) -> None:
-        cursor = self.output.textCursor()
-        cursor.movePosition(cursor.End)
-        cursor.insertText(text)
-        self.output.setTextCursor(cursor)
-        self.output.ensureCursorVisible()
+        note = text.strip()
+        if not note:
+            return
+        self._push_markdown_block(self._note_block(note))
+        self._render_transcript()
+
+    def _push_markdown_block(self, block: str) -> None:
+        self._transcript_blocks.append(block)
+        # Bound transcript growth in long GUI sessions.
+        if len(self._transcript_blocks) > 500:
+            self._transcript_blocks = self._transcript_blocks[-500:]
+
+    def _note_block(self, text: str) -> str:
+        return f"```text\n{text}\n```"
+
+    def _render_transcript(self) -> None:
+        parts = list(self._transcript_blocks)
+        if self._active_agent_markdown is not None:
+            parts.append(f"**Agent:**\n\n{self._active_agent_markdown}")
+        markdown = "\n\n".join(p for p in parts if p)
+        if hasattr(self.output, "setMarkdown"):
+            self.output.setMarkdown(markdown)
+        else:
+            self.output.setPlainText(markdown)
+        bar = self.output.verticalScrollBar()
+        bar.setValue(bar.maximum())
 
     def _insert_file_path(self) -> None:
         _, _, QtWidgets = _qt()
@@ -134,11 +210,200 @@ class FastfoldAgentDialog:
         for p in paths:
             self.input.appendPlainText(f"\"{p}\"")
 
+    def _insert_example_prompt(self) -> None:
+        current = self.input.toPlainText().strip()
+        if current:
+            self.input.appendPlainText("")
+        self.input.appendPlainText(EXAMPLE_PROMPT_TEXT)
+        self.input.setFocus()
+
+    def _on_model_changed(self, model: str) -> None:
+        selected = (model or "").strip()
+        if not selected:
+            return
+        if selected not in self._config.SUPPORTED_ANTHROPIC_MODELS:
+            self._append(f"\n[Config] Ignored unsupported model: {selected}\n")
+            return
+        self._config.save_config("anthropic_model", selected)
+        self._append(f"\n[Config] Anthropic model set to {selected}\n")
+
+    def _refresh_skills_indicator(self, force_reload: bool = False) -> None:
+        try:
+            loaded = self._skills.list_skills(force_reload=force_reload)
+            count = len(loaded)
+        except Exception:
+            self.skills_btn.setText("Skills (?)")
+            self.skills_btn.setToolTip("Unable to read skills list.")
+            return
+        self.skills_btn.setText(f"Skills ({count})")
+        self.skills_btn.setToolTip("Show loaded skills in chat")
+
+    def _on_show_skills(self) -> None:
+        try:
+            loaded = self._skills.list_skills(force_reload=True)
+        except Exception as e:
+            self._append(f"\n[Skills] Failed to load skills: {e}\n")
+            return
+
+        self._refresh_skills_indicator(force_reload=False)
+        if not loaded:
+            self._append("\n[Skills] No skills loaded. Add SKILL.md folders under configured skills_paths.\n")
+            return
+
+        self._append(f"\n[Skills] Loaded {len(loaded)} skill(s):\n")
+        for skill in loaded:
+            desc = (skill.description or "").strip()
+            line = f"  - {skill.name}"
+            if desc:
+                line += f": {desc}"
+            self._append(line + "\n")
+
+    def _default_export_dir(self) -> str:
+        base = os.path.expanduser(self._config.get("output_dir") or os.getcwd())
+        try:
+            os.makedirs(base, exist_ok=True)
+            return base
+        except OSError:
+            fallback = os.path.expanduser("~/.fastfold-pymol-agent/scripts")
+            os.makedirs(fallback, exist_ok=True)
+            return fallback
+
+    def _pick_save_path(self, title: str, filename: str, file_filter: str) -> str:
+        _, _, QtWidgets = _qt()
+        start = os.path.join(self._default_export_dir(), filename)
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(self.widget, title, start, file_filter)
+        return path or ""
+
+    def _session_log(self):
+        sess = self._session.get_session()
+        return sess, sess.get_log()
+
+    def _on_export_session_json(self) -> None:
+        sess, log = self._session_log()
+        if not log:
+            self._append("\n[Export] No exchanges in this session yet.\n")
+            return
+
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = self._pick_save_path(
+            "Export chat session as JSON",
+            f"fastfold_pymol_agent_session_{ts}.json",
+            "JSON files (*.json);;All files (*)",
+        )
+        if not path:
+            return
+
+        payload = {
+            "started_at": sess.started_at,
+            "exported_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "exchanges": log,
+        }
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2)
+            self._append(f"\n[Export] Session JSON saved to: {path}\n")
+        except OSError as e:
+            self._append(f"\n[Export] Failed to save JSON: {e}\n")
+
+    def _on_export_selected(self, index: int) -> None:
+        if index <= 0:
+            return
+        try:
+            if index == 1:
+                self._on_export_session_json()
+            elif index == 2:
+                self._on_save_session_script()
+            elif index == 3:
+                self._on_save_last_generated_script()
+        finally:
+            self.export_combo.blockSignals(True)
+            self.export_combo.setCurrentIndex(0)
+            self.export_combo.blockSignals(False)
+
+    def _render_session_script(self, started_at: str, log: list[dict]) -> str:
+        lines = [
+            "# Fastfold PyMOL Agent session log",
+            f"# Session started: {started_at}",
+            f"# Saved:           {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "from pymol import cmd",
+            "",
+        ]
+        for i, entry in enumerate(log, 1):
+            lines.append(f"# -- Step {i}: {entry.get('timestamp', '')}")
+            lines.append(f"# Prompt: {entry.get('prompt', '')}")
+            summary = entry.get("summary") or ""
+            if summary:
+                lines.append(f"# {summary}")
+            code = entry.get("code")
+            lines.append(code if code else "# (no commands generated)")
+            lines.append("")
+        return "\n".join(lines)
+
+    def _on_save_session_script(self) -> None:
+        sess, log = self._session_log()
+        if not log:
+            self._append("\n[Export] No exchanges in this session yet.\n")
+            return
+
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = self._pick_save_path(
+            "Save session as runnable script",
+            f"fastfold_pymol_agent_session_{ts}.py",
+            "Python files (*.py);;All files (*)",
+        )
+        if not path:
+            return
+
+        content = self._render_session_script(sess.started_at, log)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(content)
+            self._append(f"\n[Export] Session script saved to: {path}\n")
+        except OSError as e:
+            self._append(f"\n[Export] Failed to save session script: {e}\n")
+
+    def _on_save_last_generated_script(self) -> None:
+        _, log = self._session_log()
+        code = ""
+        for entry in reversed(log):
+            maybe_code = entry.get("code")
+            if maybe_code:
+                code = maybe_code
+                break
+        if not code:
+            self._append("\n[Export] No generated script found in this session yet.\n")
+            return
+
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = self._pick_save_path(
+            "Save last generated script",
+            f"fastfold_pymol_agent_{ts}.py",
+            "Python files (*.py);;All files (*)",
+        )
+        if not path:
+            return
+
+        header = (
+            "# Generated by Fastfold PyMOL Agent\n"
+            f"# {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            "from pymol import cmd\n\n"
+        )
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(header + code + "\n")
+            self._append(f"\n[Export] Last generated script saved to: {path}\n")
+        except OSError as e:
+            self._append(f"\n[Export] Failed to save generated script: {e}\n")
+
     def _set_running(self, running: bool) -> None:
         self._is_running = running
         self.send_btn.setEnabled(not running)
         self.file_btn.setEnabled(not running)
         self.clear_btn.setEnabled(not running)
+        self.model_combo.setEnabled(not running)
+        self.skills_btn.setEnabled(not running)
+        self.export_combo.setEnabled(not running)
+        self.example_btn.setEnabled(not running)
         self.cancel_btn.setEnabled(running)
         if running:
             self._spinner_index = 0
@@ -166,8 +431,8 @@ class FastfoldAgentDialog:
 
     def _on_worker_token(self, token: str) -> None:
         if not self._stream_started:
-            self._append("Agent: ")
             self._stream_started = True
+            self._active_agent_markdown = ""
             self._set_phase("Streaming")
         self._token_buffer.append(token)
 
@@ -176,7 +441,10 @@ class FastfoldAgentDialog:
             return
         chunk = "".join(self._token_buffer)
         self._token_buffer.clear()
-        self._append(chunk)
+        if self._active_agent_markdown is None:
+            self._active_agent_markdown = ""
+        self._active_agent_markdown += chunk
+        self._render_transcript()
 
     def _on_send(self) -> None:
         if self._is_running:
@@ -185,8 +453,10 @@ class FastfoldAgentDialog:
         if not prompt:
             return
         self.input.clear()
-        self._append(f"\n\nYou: {prompt}\n")
+        self._push_markdown_block(f"**You:** {prompt}")
+        self._render_transcript()
         self._stream_started = False
+        self._active_agent_markdown = None
         self._token_buffer.clear()
         self._set_phase("Thinking")
         self._set_running(True)
@@ -217,9 +487,12 @@ class FastfoldAgentDialog:
     def _on_worker_finished(self, cancelled: bool) -> None:
         self._flush_token_buffer()
         if cancelled:
-            self._append("\n[Cancelled]\n")
-        elif self._stream_started:
-            self._append("\n")
+            self._active_agent_markdown = None
+            self._append("[Cancelled]")
+        elif self._stream_started and self._active_agent_markdown is not None:
+            self._push_markdown_block(f"**Agent:**\n\n{self._active_agent_markdown}")
+            self._active_agent_markdown = None
+            self._render_transcript()
         self._set_running(False)
         self._worker = None
         self._worker_thread = None

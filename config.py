@@ -6,10 +6,32 @@ from typing import Any
 
 CONFIG_PATH = os.path.expanduser("~/.fastfold-pymol-agent.json")
 
+SUPPORTED_ANTHROPIC_MODELS = (
+    # Latest models
+    "claude-opus-4-7",
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5-20251001",
+    "claude-haiku-4-5",
+    # Legacy models still listed as available
+    "claude-opus-4-6",
+    "claude-sonnet-4-5-20250929",
+    "claude-sonnet-4-5",
+    "claude-opus-4-5-20251101",
+    "claude-opus-4-5",
+    "claude-opus-4-1-20250805",
+    "claude-opus-4-1",
+    "claude-sonnet-4-20250514",
+    "claude-sonnet-4-0",
+    "claude-opus-4-20250514",
+    "claude-opus-4-0",
+)
+
+DEFAULT_ANTHROPIC_MODEL = "claude-haiku-4-5"
+
 DEFAULTS = {
     "backend": "anthropic",
     "max_history": 20,
-    "anthropic_model": "claude-sonnet-4-6",
+    "anthropic_model": DEFAULT_ANTHROPIC_MODEL,
     "anthropic_use_agent_sdk": True,
     "agent_sdk_max_turns": 30,
     "anthropic_api_key": "",
@@ -38,6 +60,8 @@ def _coerce_types(data: dict[str, Any]) -> dict[str, Any]:
         cfg["agent_sdk_max_turns"] = int(cfg["agent_sdk_max_turns"])
     if "skills_max_chars" in cfg:
         cfg["skills_max_chars"] = int(cfg["skills_max_chars"])
+    if "anthropic_model" in cfg and isinstance(cfg["anthropic_model"], str):
+        cfg["anthropic_model"] = cfg["anthropic_model"].strip()
     if "anthropic_use_agent_sdk" in cfg and isinstance(cfg["anthropic_use_agent_sdk"], str):
         cfg["anthropic_use_agent_sdk"] = cfg["anthropic_use_agent_sdk"].lower() in ("1", "true", "yes", "on")
     if "skills_enabled" in cfg and isinstance(cfg["skills_enabled"], str):
