@@ -43,9 +43,57 @@ jobs:
       - name: Build plugin zip artifact
         shell: bash
         run: |
-          chmod +x scripts/build_plugin_zip.sh
-          bash scripts/build_plugin_zip.sh "${{ steps.meta.outputs.version }}"
-          cp "dist/fastfold-pymol-agent-${{ steps.meta.outputs.version }}-plugin.zip" "dist/fastfold-pymol-agent-plugin.zip"
+          python - "${{ steps.meta.outputs.version }}" <<'PY'
+          import pathlib
+          import shutil
+          import sys
+          import tempfile
+          import zipfile
+
+          version = sys.argv[1]
+          root = pathlib.Path(".")
+          dist = root / "dist"
+          dist.mkdir(parents=True, exist_ok=True)
+
+          staging = pathlib.Path(tempfile.mkdtemp(prefix="plugin_zip_"))
+          pkg_dir = staging / "fastfold_pymol_agent"
+          pkg_dir.mkdir(parents=True, exist_ok=True)
+
+          runtime_files = [
+              "__init__.py",
+              "agent_sdk.py",
+              "config.py",
+              "gui.py",
+              "llm.py",
+              "prompts.py",
+              "session.py",
+              "skills.py",
+              "state.py",
+              "utils.py",
+          ]
+
+          for rel in runtime_files:
+              src = root / rel
+              if not src.is_file():
+                  raise SystemExit(f"Missing runtime file: {src}")
+              shutil.copy2(src, pkg_dir / rel)
+
+          assets_src = root / "assets"
+          if assets_src.is_dir():
+              shutil.copytree(assets_src, pkg_dir / "assets")
+
+          versioned_zip = dist / f"fastfold-pymol-agent-{version}-plugin.zip"
+          with zipfile.ZipFile(versioned_zip, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+              for path in sorted(pkg_dir.rglob("*")):
+                  if path.is_file():
+                      zf.write(path, path.relative_to(staging))
+
+          latest_zip = dist / "fastfold-pymol-agent-plugin.zip"
+          shutil.copy2(versioned_zip, latest_zip)
+
+          print(versioned_zip)
+          print(latest_zip)
+          PY
           ls -lh dist/
 
       - name: Upload zip to GitHub release
