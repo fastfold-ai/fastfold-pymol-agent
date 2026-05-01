@@ -19,10 +19,22 @@ Install the Fastfold agent and PyMOL open source with our standalone installers
 curl -LsSf http://fastfold.ai/pymol-agent/install.sh | sh
 ```
 
+Install agent only (skip PyMOL install):
+
+```bash
+curl -LsSf http://fastfold.ai/pymol-agent/install.sh | sh -s -- --agent-only
+```
+
+Override conda env name:
+
+```bash
+curl -LsSf http://fastfold.ai/pymol-agent/install.sh | sh -s -- --env-name myenv
+```
+
 Then launch PyMOL:
 
 ```bash
-conda activate <env_name>
+conda activate myenv
 pymol
 ```
 
