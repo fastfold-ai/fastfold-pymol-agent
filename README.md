@@ -46,6 +46,43 @@ This opens the PyMOL UI. Then follow the **First run in PyMOL** section below to
 fastfold help
 ```
 
+### Commercial PyMOL: plugin zip install
+
+If you use commercial PyMOL and prefer Plugin Manager installs, install the release zip artifact directly from GitHub Releases.
+
+Recommended release asset URL (always latest):
+
+```text
+https://github.com/fastfold-ai/fastfold-pymol-agent/releases/latest/download/fastfold-pymol-agent-plugin.zip
+```
+
+Version-pinned URL (optional):
+
+```text
+https://github.com/fastfold-ai/fastfold-pymol-agent/releases/download/1.0.0/fastfold-pymol-agent-1.0.0-plugin.zip
+```
+
+Install directly from URL in PyMOL:
+
+1. Open **Plugin > Plugin Manager > Install New Plugin**.
+2. In **Install from PyMOLWiki or any URL**, paste:
+   `https://github.com/fastfold-ai/fastfold-pymol-agent/releases/latest/download/fastfold-pymol-agent-plugin.zip`
+3. Click **Fetch** and confirm install.
+4. Open the plugin from the Plugins menu.
+5. In the PyMOL command line, install required Python dependencies once:
+
+```text
+fastfold deps install
+```
+
+Optional local-file install:
+
+1. Download the zip from the release URL above.
+2. In **Install from local file**, click **Choose file...** and select the downloaded zip.
+3. Confirm install.
+
+
+
 ### Explore Fastfold Apps
 
 After install, explore Fastfold Apps to see what the PyMOL Agent can orchestrate across the Fastfold agentic platform.
@@ -225,6 +262,7 @@ fastfold setup
 fastfold setup <anthropic> <fastfold>
 fastfold setup anthropic <key>
 fastfold setup fastfold <key>
+fastfold deps install|check
 fastfold upgrade
 fastfold doctor
 

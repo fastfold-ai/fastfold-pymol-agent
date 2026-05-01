@@ -54,7 +54,7 @@ def _anthropic_chat(
     try:
         anthropic = importlib.import_module("anthropic")
     except Exception:
-        raise RuntimeError("anthropic package not installed. Run: pip install anthropic")
+        raise RuntimeError("anthropic package not installed. Run: fastfold deps install")
 
     api_key = (cfg.get("anthropic_api_key", "") or "").strip() or os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not api_key:

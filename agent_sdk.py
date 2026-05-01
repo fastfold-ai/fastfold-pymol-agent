@@ -135,7 +135,7 @@ def create_fastfold_mcp_server():
         from claude_agent_sdk import SdkMcpTool, create_sdk_mcp_server
     except ImportError as e:
         raise RuntimeError(
-            "claude-agent-sdk is not installed. Run: pip install claude-agent-sdk"
+            "claude-agent-sdk is not installed. Run: fastfold deps install"
         ) from e
 
     async def skill_list_handler(_args: dict[str, Any]) -> dict[str, Any]:
@@ -577,7 +577,7 @@ async def run_claude_agent_sdk(
         )
     except ImportError as e:
         raise RuntimeError(
-            "claude-agent-sdk is not installed. Run: pip install claude-agent-sdk"
+            "claude-agent-sdk is not installed. Run: fastfold deps install"
         ) from e
 
     system_prompt = ""

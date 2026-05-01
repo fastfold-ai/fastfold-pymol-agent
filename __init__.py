@@ -14,6 +14,7 @@ Commands registered in the PyMOL command line:
   fastfold setup <anthropic_key> <fastfold_key>
   fastfold setup anthropic <api_key>
   fastfold setup fastfold <api_key>
+  fastfold deps install|check              install/check required Python deps
   fastfold upgrade                        upgrade installed agent from GitHub
   fastfold doctor
   fastfold agent on|off|status
@@ -113,6 +114,9 @@ def _fastfold(*args, **kwargs):
         return
     if verb == "setup":
         _fastfold_setup(rest)
+        return
+    if verb == "deps":
+        _fastfold_deps(rest)
         return
     if verb == "upgrade":
         _fastfold_upgrade(rest)
@@ -563,6 +567,76 @@ def _fastfold_upgrade(tokens: list[str]) -> None:
         print(f"  {' '.join(cmd)}")
 
 
+def _fastfold_deps(tokens: list[str]) -> None:
+    action = tokens[0].lower() if tokens else "install"
+    if action not in ("install", "check", "help"):
+        print("Usage: fastfold deps install|check")
+        return
+    if action == "help":
+        print("Usage: fastfold deps install|check")
+        print("  install: install/upgrade required Python packages in current PyMOL Python")
+        print("  check:   verify required Python packages are importable")
+        return
+
+    required = (
+        ("anthropic", "anthropic"),
+        ("claude-agent-sdk", "claude_agent_sdk"),
+    )
+
+    if action == "check":
+        failures = 0
+        print("Fastfold Agent dependency check:")
+        for pip_name, import_name in required:
+            ok = importlib.util.find_spec(import_name) is not None
+            status = "OK" if ok else "MISSING"
+            print(f"  [{status}] {pip_name}")
+            if not ok:
+                failures += 1
+        if failures == 0:
+            print("\nAll required dependencies are installed.")
+        else:
+            print(f"\nMissing {failures} dependency(ies). Run: fastfold deps install")
+        return
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--upgrade",
+        "anthropic",
+        "claude-agent-sdk",
+    ]
+    print("Fastfold Agent: installing dependencies in current PyMOL Python...")
+    print(f"  Python:  {sys.executable}")
+    print(f"  Command: {' '.join(cmd)}")
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception as e:
+        print(f"Fastfold Agent: dependency install failed to start — {e}")
+        print("Manual fallback:")
+        print(f"  {' '.join(cmd)}")
+        return
+
+    if result.stdout.strip():
+        print(result.stdout.strip())
+    if result.stderr.strip():
+        print(result.stderr.strip())
+
+    if result.returncode == 0:
+        print("\nFastfold Agent: dependencies installed.")
+        _fastfold_deps(["check"])
+    else:
+        print(f"\nFastfold Agent: dependency install failed (exit code {result.returncode}).")
+        print("Retry manually:")
+        print(f"  {' '.join(cmd)}")
+
+
 def _print_setup_wizard(first_run: bool = False) -> None:
     from . import config
 
@@ -731,7 +805,7 @@ def _fastfold_doctor() -> None:
         anthropic_ok,
         "anthropic package",
         detail_ok="importable",
-        detail_fail=f"not importable ({anthropic_err}). Reinstall package.",
+        detail_fail=f"not importable ({anthropic_err}). Run `fastfold deps install`.",
     )
 
     sdk_pkg_ok = importlib.util.find_spec("claude_agent_sdk") is not None
@@ -740,7 +814,7 @@ def _fastfold_doctor() -> None:
         sdk_pkg_ok,
         "claude-agent-sdk package",
         detail_ok="importable",
-        detail_fail=f"not importable ({sdk_pkg_err}). Reinstall package.",
+        detail_fail=f"not importable ({sdk_pkg_err}). Run `fastfold deps install`.",
     )
 
     fold_skill = skills.find_skill("fold")
@@ -1037,6 +1111,7 @@ def _print_help() -> None:
         "  fastfold setup <anthropic> <fastfold> non-interactive one-shot setup\n"
         "  fastfold setup anthropic <key>        update Anthropic key\n"
         "  fastfold setup fastfold <key>         update Fastfold key\n"
+        "  fastfold deps install|check           install/check required Python deps\n"
         "  fastfold upgrade                      upgrade installed agent from GitHub\n"
         "  fastfold doctor                       verify setup health (keys, deps, skills)\n"
         "  fastfold agent on|off|status          toggle/show agent mode\n"
