@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# FastFold PyMOL Agent config (contains API keys)
+~/.fastfold-pymol-agent.json
+
+# Generated scripts and logs
+fastfold_pymol_agent_*.py
+.fastfold-pymol-agent/
+retro_save.py
+*_session_*.py
+
+# Downloaded structure files
+*.cif
+*.pdb
+*.pse
+
+# Claude Code internals
+.claude/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+todo.txt
+
+#Tests
+/tests/
+
