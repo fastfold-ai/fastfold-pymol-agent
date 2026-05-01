@@ -24,6 +24,7 @@ DEFAULTS = {
     "sidecar_mode": "off",
     "sidecar_endpoint": "",
     "fastfold_base_url": "https://api.fastfold.ai",
+    "agent_mode": False,
 }
 
 _LEGACY_CONFIG_PATH = os.path.expanduser("~/.promptmol.json")
@@ -43,6 +44,8 @@ def _coerce_types(data: dict[str, Any]) -> dict[str, Any]:
         cfg["skills_enabled"] = cfg["skills_enabled"].lower() in ("1", "true", "yes", "on")
     if "skills_auto_reload" in cfg and isinstance(cfg["skills_auto_reload"], str):
         cfg["skills_auto_reload"] = cfg["skills_auto_reload"].lower() in ("1", "true", "yes", "on")
+    if "agent_mode" in cfg and isinstance(cfg["agent_mode"], str):
+        cfg["agent_mode"] = cfg["agent_mode"].lower() in ("1", "true", "yes", "on")
     if "skills_paths" in cfg:
         value = cfg["skills_paths"]
         if isinstance(value, str):
@@ -77,6 +80,9 @@ def load_config() -> dict[str, Any]:
             if not data.get("anthropic_api_key"):
                 data["anthropic_api_key"] = data["api_key"]
             del data["api_key"]
+    # Migration: chat_mode was renamed to agent_mode.
+    if "agent_mode" not in data and "chat_mode" in data:
+        data["agent_mode"] = data["chat_mode"]
     cfg = dict(DEFAULTS)
     for key, value in data.items():
         if key in DEFAULTS:
