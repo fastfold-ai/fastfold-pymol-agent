@@ -7,7 +7,15 @@ Fastfold PyMOL Agent is a PyMOL plugin for biology workflows: run Fastfold skill
 - Skill-first workflows: discover and run installed Fastfold skills from chat, then immediately load generated structures and artifacts into PyMOL.
 - PyMOL-native agent UX: multiline chat UI, local file references, streaming responses, and iterative structure edits without leaving PyMOL.
 - Built for reusable skills: add skills as folders and use the same interface for fold jobs, MD workflows, and custom script-backed automations.
-- Official skills pack: [fastfold-ai/skills/tree/main/skills](https://github.com/fastfold-ai/skills/tree/main/skills)
+- Official skills catalog: [https://cloud.fastfold.ai/agent/skills](https://cloud.fastfold.ai/agent/skills)
+
+## Explore Fastfold Apps
+
+- Browse the Fastfold Apps catalog: [https://cloud.fastfold.ai/apps](https://cloud.fastfold.ai/apps)
+- Available fold model options include: ESM-1b, IntelliFold, OpenFold 3, AlphaFold2, Boltz-1, Boltz-2, Chai-1, and SimpleFold.
+- Available MD workflow options include: OpenMM Calvados and OpenMMDL.
+
+![Fastfold Apps Catalog](assets/fastfold-apps-overview.png)
 
 ---
 
