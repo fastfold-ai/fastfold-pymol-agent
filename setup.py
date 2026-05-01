@@ -5,15 +5,15 @@ try:
     with open("README.md", "r", encoding="utf-8") as f:
         LONG_DESCRIPTION = f.read()
 except OSError:
-    LONG_DESCRIPTION = "FastFold PyMOL Agent"
+    LONG_DESCRIPTION = "Fastfold PyMOL Agent"
 
 setup(
     name="fastfold-pymol-agent",
     version="0.1.0",
-    description="FastFold-branded natural-language agent for PyMOL",
+    description="Fastfold-branded natural-language agent for PyMOL",
     long_description=LONG_DESCRIPTION,
     long_description_content_type="text/markdown",
-    author="FastFold AI",
+    author="Fastfold AI",
     url="https://github.com/fastfold-ai/fastfold-pymol-agent",
     # Flat-layout project: map the import package "fastfold_pymol_agent" to repo root.
     packages=["fastfold_pymol_agent"],

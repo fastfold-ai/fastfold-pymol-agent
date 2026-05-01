@@ -1,6 +1,6 @@
-# FastFold PyMOL Agent
+# Fastfold PyMOL Agent
 
-FastFold PyMOL Agent is a PyMOL plugin for biology workflows: run FastFold skills, bring generated artifacts into PyMOL, and keep iterating with natural-language visualization and analysis.
+Fastfold PyMOL Agent is a PyMOL plugin for biology workflows: run Fastfold skills, bring generated artifacts into PyMOL, and keep iterating with natural-language visualization and analysis.
 
 - Python import: `fastfold_pymol_agent`
 - Main command: `fastfold` (alias: `ff`)
@@ -74,7 +74,7 @@ cd /path/to/pymol-open-source
 pip install .
 ```
 
-### 4) Install FastFold PyMOL Agent
+### 4) Install Fastfold PyMOL Agent
 
 ```bash
 git clone https://github.com/fastfold-ai/fastfold-pymol-agent.git
@@ -154,7 +154,7 @@ fastfold setup <anthropic-key> <fastfold-key>
 
 Where to get keys:
 
-- FastFold API key: [https://cloud.fastfold.ai/api-keys](https://cloud.fastfold.ai/api-keys)
+- Fastfold API key: [https://cloud.fastfold.ai/api-keys](https://cloud.fastfold.ai/api-keys)
 - Anthropic API key: [https://platform.claude.com/dashboard](https://platform.claude.com/dashboard)
 
 Or set each key separately:
@@ -206,9 +206,18 @@ Load "/Users/you/data/model.pdb" as "ref_pdb", align it to "pred_cif", then high
 Load topology "/Users/you/data/protein.pdb" as "traj_top", load trajectory "/Users/you/data/run.dcd", then show RMSD over time and display frame 1 and last frame as cartoons.
 ```
 
-### Combining FastFold skills + PyMOL edits
+### Combining Fastfold skills + PyMOL edits
 
 Use one request that asks the agent to run a skill workflow and then style/analyze results in PyMOL.
+
+Simple prompt example:
+
+```text
+Use esm1b in Fastfold to run a fold job.
+
+Use these sequences:
+Sequence 1 (protein): MGLSDGEWQLVLNVWGKVEADIPGHGQEVLIRLFKGHPETLERFDKFKHLKSEDEMKASEDLKKHGATVLTALGGILKKKGHHEAEIKPLAQSHATKHKIPVKYLEFISECIIQVLQSKHPGDFGADAQRAMNKALELFRKDMASNYKELGFQG and show the prediction as cartoon colored by secondary structure.
+```
 
 Example (fold -> CIF -> PyMOL):
 
@@ -225,7 +234,7 @@ Use md-openmmdl to run a short workflow from my topology and ligand files, fetch
 Example (artifact refinement loop):
 
 ```text
-From the latest FastFold artifact, load structure(s), create publication-style scenes for chain interfaces, and export both a PNG and a PyMOL session file.
+From the latest Fastfold artifact, load structure(s), create publication-style scenes for chain interfaces, and export both a PNG and a PyMOL session file.
 ```
 
 ### PDB, CIF, and trajectory editing patterns
@@ -261,7 +270,7 @@ ff <...>                              short alias for fastfold
 ```text
 agent <message>                       conversational alias
 fastfold agent on|off|status          toggle/show agent mode
-fastfold ui                           open multiline FastFold Agent window
+fastfold ui                           open multiline Fastfold Agent window
 ```
 
 ### Setup and config

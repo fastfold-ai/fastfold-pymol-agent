@@ -24,7 +24,7 @@ def chat(
     if backend != "anthropic":
         raise RuntimeError(
             f"Unsupported backend '{backend}'. "
-            "FastFold PyMOL Agent currently supports Anthropic only. Run: fastfold setup"
+            "Fastfold PyMOL Agent currently supports Anthropic only. Run: fastfold setup"
         )
     if cfg.get("anthropic_use_agent_sdk", True):
         return _anthropic_agent_sdk_chat(

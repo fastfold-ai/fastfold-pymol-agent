@@ -21,7 +21,7 @@ def _qt():
         ) from e
 
 
-class FastFoldAgentDialog:
+class FastfoldAgentDialog:
     def __init__(self, run_prompt: Callable[..., None]):
         QtCore, QtGui, QtWidgets = _qt()
         self._QtCore = QtCore
@@ -37,7 +37,7 @@ class FastFoldAgentDialog:
         self._worker_thread = None
 
         self.widget = QtWidgets.QDialog()
-        self.widget.setWindowTitle("FastFold Agent")
+        self.widget.setWindowTitle("Fastfold Agent")
         self.widget.resize(900, 620)
 
         root = QtWidgets.QVBoxLayout(self.widget)
@@ -290,11 +290,11 @@ class _PromptWorker:
             self.finished.emit(self._cancelled)
 
 
-_DIALOG: Optional[FastFoldAgentDialog] = None
+_DIALOG: Optional[FastfoldAgentDialog] = None
 
 
 def show_dialog(run_prompt: Callable[..., None]) -> None:
     global _DIALOG
     if _DIALOG is None:
-        _DIALOG = FastFoldAgentDialog(run_prompt=run_prompt)
+        _DIALOG = FastfoldAgentDialog(run_prompt=run_prompt)
     _DIALOG.show()

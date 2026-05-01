@@ -1,4 +1,4 @@
-"""Skill discovery and prompt-context helpers for FastFold PyMOL Agent."""
+"""Skill discovery and prompt-context helpers for Fastfold PyMOL Agent."""
 
 from __future__ import annotations
 

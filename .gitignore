@@ -6,7 +6,7 @@ __pycache__/
 dist/
 build/
 
-# FastFold PyMOL Agent config (contains API keys)
+# Fastfold PyMOL Agent config (contains API keys)
 ~/.fastfold-pymol-agent.json
 
 # Generated scripts and logs

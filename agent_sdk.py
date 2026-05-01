@@ -517,7 +517,7 @@ def create_fastfold_mcp_server():
         SdkMcpTool(
             name="fastfold_submit_wait_download_load",
             description=(
-                "Preferred end-to-end FastFold workflow tool: submit job from payload JSON, "
+                "Preferred end-to-end Fastfold workflow tool: submit job from payload JSON, "
                 "wait for completion, download CIFs, and load them into PyMOL."
             ),
             input_schema={
@@ -525,7 +525,7 @@ def create_fastfold_mcp_server():
                 "properties": {
                     "payload_json": {
                         "type": "string",
-                        "description": "Full FastFold JobInput JSON payload as a string.",
+                        "description": "Full Fastfold JobInput JSON payload as a string.",
                     },
                     "timeout_s": {"type": "integer"},
                     "poll_interval_s": {"type": "number"},
@@ -616,7 +616,7 @@ async def run_claude_agent_sdk(
     sdk_prompt = (
         "You can use MCP tools for skill-native execution.\n"
         "Inspect skill maps and references with `skill_list_files` and `skill_read_reference` when needed.\n"
-        "For FastFold workflows, prefer tool calls over generating raw fallback code.\n"
+        "For Fastfold workflows, prefer tool calls over generating raw fallback code.\n"
         "Use `fastfold_submit_wait_download_load` for end-to-end fold execution when possible.\n"
         "If no tool is needed, you may still return a python code block for PyMOL actions.\n\n"
         f"{system_prompt}"

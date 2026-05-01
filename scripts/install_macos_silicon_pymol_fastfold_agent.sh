@@ -188,7 +188,7 @@ awk '
 
 cat >> "${TMP_PYMOLRC}" <<'EOF'
 
-# FastFold PyMOL Agent
+# Fastfold PyMOL Agent
 import fastfold_pymol_agent
 fastfold_pymol_agent.__init_plugin__()
 EOF

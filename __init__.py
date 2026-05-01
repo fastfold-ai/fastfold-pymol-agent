@@ -1,10 +1,10 @@
 """
-FastFold PyMOL Agent — natural-language control for PyMOL.
+Fastfold PyMOL Agent — natural-language control for PyMOL.
 
 Commands registered in the PyMOL command line:
   fastfold <prompt>
   agent <prompt>                         conversational alias for follow-up turns
-  fastfold ui                            open multiline FastFold Agent window
+  fastfold ui                            open multiline Fastfold Agent window
   fastfold dry <prompt>
   fastfold save [filename.py] <prompt>
   fastfold save [filename.py]            save last generated script
@@ -65,7 +65,7 @@ def __init_plugin__(app=None):
     try:
         from pymol.plugins import addmenuitemqt
 
-        addmenuitemqt("FastFold Agent", _fastfold_ui)
+        addmenuitemqt("Fastfold Agent", _fastfold_ui)
     except Exception:
         # PyMOL builds without Qt plugin menus should still load commands.
         pass
@@ -74,7 +74,7 @@ def __init_plugin__(app=None):
         _print_setup_wizard(first_run=True)
     else:
         cfg = config.load_config()
-        print("FastFold PyMOL Agent loaded. Type 'fastfold help' for usage.")
+        print("Fastfold PyMOL Agent loaded. Type 'fastfold help' for usage.")
         print("Type 'fastfold skills list' to inspect installed skills.\n")
         if cfg.get("agent_mode", False):
             print("Agent mode is ON. Use `agent <message>` for follow-up turns.\n")
@@ -168,7 +168,7 @@ def _fastfold_ui() -> None:
 
         show_dialog(run_prompt=_run_prompt)
     except Exception as e:
-        print(f"FastFold Agent: unable to open UI window — {e}")
+        print(f"Fastfold Agent: unable to open UI window — {e}")
 
 
 # ── Core prompt runner ────────────────────────────────────────────────────────
@@ -201,14 +201,14 @@ def _run_prompt(
     effective_ff_key = (os.environ.get("FASTFOLD_API_KEY") or "").strip()
 
     if workflow_request and not effective_ff_key:
-        print("FastFold Agent: FastFold API key is required for workflow requests.")
+        print("Fastfold Agent: Fastfold API key is required for workflow requests.")
         print("Run: fastfold setup")
         _LAST_EXECUTION_NOTE = ""
         return
 
     resolved_dir = os.path.expanduser(output_dir or cfg.get("output_dir") or os.getcwd())
     if not os.path.exists(resolved_dir):
-        print(f"FastFold Agent: output directory '{resolved_dir}' does not exist — creating it.")
+        print(f"Fastfold Agent: output directory '{resolved_dir}' does not exist — creating it.")
     os.makedirs(resolved_dir, exist_ok=True)
 
     scene = state.get_scene_state()
@@ -239,14 +239,14 @@ def _run_prompt(
 
     backend = cfg.get("backend", "anthropic")
     if model_override:
-        print(f"FastFold Agent [{backend}]: thinking (model: {model_override})...")
+        print(f"Fastfold Agent [{backend}]: thinking (model: {model_override})...")
     else:
-        print(f"FastFold Agent [{backend}]: thinking...")
+        print(f"Fastfold Agent [{backend}]: thinking...")
 
     try:
         response = llm.chat(messages, on_token=on_token, model_override=model_override)
     except RuntimeError as e:
-        print(f"FastFold Agent ERROR: {e}")
+        print(f"Fastfold Agent ERROR: {e}")
         _LAST_EXECUTION_NOTE = ""
         return
 
@@ -274,8 +274,8 @@ def _run_prompt(
             error = execute_code(code, resolved_dir)
 
             if error:
-                print(f"FastFold Agent: execution error — {error}")
-                print("FastFold Agent: asking LLM to fix once...")
+                print(f"Fastfold Agent: execution error — {error}")
+                print("Fastfold Agent: asking LLM to fix once...")
                 retry_messages = messages + [
                     {"role": "assistant", "content": response},
                     {
@@ -296,7 +296,7 @@ def _run_prompt(
                     if code2:
                         error2 = execute_code(code2, resolved_dir)
                         if error2:
-                            print(f"FastFold Agent: auto-fix also failed — {error2}")
+                            print(f"Fastfold Agent: auto-fix also failed — {error2}")
                             _LAST_EXECUTION_NOTE = (
                                 f"Code failed ({error}). Auto-fix also failed ({error2})."
                             )
@@ -308,10 +308,10 @@ def _run_prompt(
                                 "Previous code had an error that was auto-fixed."
                             )
                     else:
-                        print("FastFold Agent: retry did not produce code.")
+                        print("Fastfold Agent: retry did not produce code.")
                         _LAST_EXECUTION_NOTE = f"Code failed with error: {error}"
                 except RuntimeError as retry_err:
-                    print(f"FastFold Agent: retry LLM call failed — {retry_err}")
+                    print(f"Fastfold Agent: retry LLM call failed — {retry_err}")
                     _LAST_EXECUTION_NOTE = f"Code failed with error: {error}"
             else:
                 try:
@@ -342,10 +342,10 @@ def _run_prompt(
     # details in plain text, remind the user to prefix the next turn with ff.
     if not code and _looks_like_followup_request(summary):
         if cfg.get("agent_mode", False):
-            print("\nFastFold Agent tip: reply with `agent <message>` (or `ff \"...\"`).")
+            print("\nFastfold Agent tip: reply with `agent <message>` (or `ff \"...\"`).")
         else:
             print(
-                "\nFastFold Agent tip: reply with `ff \"...\"` / `fastfold \"...\"` / `agent <message>`.\n"
+                "\nFastfold Agent tip: reply with `ff \"...\"` / `fastfold \"...\"` / `agent <message>`.\n"
                 "Enable sticky agent mode anytime: `fastfold agent on`."
             )
 
@@ -377,20 +377,20 @@ def _fastfold_agent(tokens: list[str]) -> None:
     subcommand = tokens[0].lower() if tokens else "status"
     if subcommand in ("status", "show"):
         enabled = bool(config.get("agent_mode"))
-        print(f"FastFold Agent mode: {'ON' if enabled else 'OFF'}")
+        print(f"Fastfold Agent mode: {'ON' if enabled else 'OFF'}")
         print("Use `agent <message>` for conversational turns.")
         print("Use `fastfold agent on` or `fastfold agent off` to toggle.")
         return
 
     if subcommand in ("on", "enable"):
         config.save_config("agent_mode", True)
-        print("FastFold Agent mode: ON")
+        print("Fastfold Agent mode: ON")
         print("You can now use `agent <message>` for follow-up turns.")
         return
 
     if subcommand in ("off", "disable"):
         config.save_config("agent_mode", False)
-        print("FastFold Agent mode: OFF")
+        print("Fastfold Agent mode: OFF")
         print("Use `ff \"...\"` or `fastfold \"...\"` as usual.")
         return
 
@@ -416,16 +416,16 @@ def _save_undo_state() -> None:
 def _fastfold_undo():
     global _UNDO_STATE
     if _UNDO_STATE is None:
-        print("FastFold Agent: nothing to undo.")
+        print("Fastfold Agent: nothing to undo.")
         return
     try:
         from pymol import cmd
 
         cmd.set_session(_UNDO_STATE)
         _UNDO_STATE = None
-        print("FastFold Agent: scene restored to before last command.")
+        print("Fastfold Agent: scene restored to before last command.")
     except Exception as e:
-        print(f"FastFold Agent: undo failed — {e}")
+        print(f"Fastfold Agent: undo failed — {e}")
 
 
 def _fastfold_reset():
@@ -436,7 +436,7 @@ def _fastfold_reset():
     _LAST_SCRIPT = None
     _UNDO_STATE = None
     _LAST_EXECUTION_NOTE = ""
-    print("FastFold Agent: conversation history cleared.")
+    print("Fastfold Agent: conversation history cleared.")
 
 
 # ── setup/config command group ────────────────────────────────────────────────
@@ -475,7 +475,7 @@ def _fastfold_setup(tokens: list[str]) -> None:
             print("Usage: fastfold setup <anthropic_key> <fastfold_key>")
             return
         _store_credentials(anthropic_key, fastfold_key)
-        print("\nFastFold Agent: setup complete.")
+        print("\nFastfold Agent: setup complete.")
         print("Run `fastfold doctor` to verify everything.\n")
         return
 
@@ -492,7 +492,7 @@ def _fastfold_setup(tokens: list[str]) -> None:
             )
             return
         _store_credentials(key, existing_fastfold)
-        print("\nFastFold Agent: Anthropic API key saved.")
+        print("\nFastfold Agent: Anthropic API key saved.")
         print("Run `fastfold doctor` to verify everything.\n")
         return
 
@@ -500,13 +500,13 @@ def _fastfold_setup(tokens: list[str]) -> None:
         if not key:
             print("\nUsage: fastfold setup fastfold <your-api-key>")
             print(
-                "Current FastFold key: "
+                "Current Fastfold key: "
                 + ("configured" if existing_fastfold else "missing")
                 + "\n"
             )
             return
         _store_credentials(existing_anthropic, key)
-        print("\nFastFold Agent: FastFold API key saved.")
+        print("\nFastfold Agent: Fastfold API key saved.")
         print("Run `fastfold doctor` to verify everything.\n")
         return
 
@@ -528,19 +528,19 @@ def _print_setup_wizard(first_run: bool = False) -> None:
     if first_run:
         print("")
         print("  ╔══════════════════════════════════════════════════╗")
-        print("  ║           Welcome to FastFold Agent              ║")
+        print("  ║           Welcome to Fastfold Agent              ║")
         print("  ║          Natural-language control for PyMOL      ║")
         print("  ╚══════════════════════════════════════════════════╝")
         print("")
         print("  First-time setup — configure required API keys:")
     else:
-        print("\n  FastFold Agent Setup")
+        print("\n  Fastfold Agent Setup")
         print("  " + "─" * 48)
-        print("\n  Configure Anthropic + FastFold API keys:")
+        print("\n  Configure Anthropic + Fastfold API keys:")
 
     print("")
     print(f"  Anthropic API key: {'configured' if has_anthropic else 'missing'}")
-    print(f"  FastFold API key:  {'configured' if has_fastfold else 'missing'}")
+    print(f"  Fastfold API key:  {'configured' if has_fastfold else 'missing'}")
     print("")
     print("  Run guided setup (non-blocking):")
     print("       fastfold setup")
@@ -574,7 +574,7 @@ def _fastfold_config(tokens: list[str]) -> None:
 
     if not tokens or tokens[0].lower() == "show":
         cfg = config.load_config()
-        print("FastFold Agent config:")
+        print("Fastfold Agent config:")
         for key in sorted(cfg):
             value = cfg[key]
             if "key" in key and value:
@@ -609,14 +609,14 @@ def _fastfold_config(tokens: list[str]) -> None:
     config.save_config(key, value)
     if key == "max_history":
         session.update_max_history(int(value))
-    print(f"FastFold Agent: set {key} = {value}")
+    print(f"Fastfold Agent: set {key} = {value}")
 
 
 def _fastfold_doctor() -> None:
     from . import config, skills
 
     cfg = config.load_config()
-    print("FastFold Agent doctor:")
+    print("Fastfold Agent doctor:")
 
     failures = 0
 
@@ -649,7 +649,7 @@ def _fastfold_doctor() -> None:
     fastfold_env = (os.environ.get("FASTFOLD_API_KEY") or "").strip()
     check(
         bool(fastfold_cfg or fastfold_env),
-        "FastFold API key",
+        "Fastfold API key",
         detail_ok="configured",
         detail_fail="missing. Run `fastfold setup`.",
     )
@@ -718,7 +718,7 @@ def _fastfold_skills(tokens: list[str]) -> None:
 
     if subcommand == "reload":
         reloaded = skills.reload_skills()
-        print(f"FastFold Agent: reloaded {len(reloaded)} skill(s).")
+        print(f"Fastfold Agent: reloaded {len(reloaded)} skill(s).")
         return
 
     if subcommand == "list":
@@ -804,7 +804,7 @@ def _fastfold_save(tokens: list[str]) -> None:
     # No args: save last generated script.
     if not tokens:
         if _LAST_SCRIPT is None:
-            print("FastFold Agent: no script has been generated yet.")
+            print("Fastfold Agent: no script has been generated yet.")
             return
         out = os.path.expanduser(config.get("output_dir") or os.getcwd())
         _do_save(_LAST_SCRIPT, None, out)
@@ -816,7 +816,7 @@ def _fastfold_save(tokens: list[str]) -> None:
         prompt = " ".join(tokens[1:]).strip()
         if not prompt:
             if _LAST_SCRIPT is None:
-                print("FastFold Agent: no script has been generated yet.")
+                print("Fastfold Agent: no script has been generated yet.")
                 return
             out = os.path.expanduser(config.get("output_dir") or os.getcwd())
             _do_save(_LAST_SCRIPT, filename, out)
@@ -827,7 +827,7 @@ def _fastfold_save(tokens: list[str]) -> None:
     # one token: either filename for save-last or one-word prompt
     if len(tokens) == 1 and _looks_like_filename(tokens[0]):
         if _LAST_SCRIPT is None:
-            print("FastFold Agent: no script has been generated yet.")
+            print("Fastfold Agent: no script has been generated yet.")
             return
         out = os.path.expanduser(config.get("output_dir") or os.getcwd())
         _do_save(_LAST_SCRIPT, tokens[0], out)
@@ -859,13 +859,13 @@ def _do_save(code: str, filename: Optional[str], output_dir: str = "") -> None:
 
 def _write_script(path: str, code: str) -> None:
     header = (
-        "# Generated by FastFold PyMOL Agent\n"
+        "# Generated by Fastfold PyMOL Agent\n"
         f"# {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
         "from pymol import cmd\n\n"
     )
     with open(path, "w", encoding="utf-8") as f:
         f.write(header + code + "\n")
-    print(f"FastFold Agent: script saved to {path}")
+    print(f"Fastfold Agent: script saved to {path}")
 
 
 def _fastfold_log(tokens: list[str]) -> None:
@@ -876,11 +876,11 @@ def _fastfold_log(tokens: list[str]) -> None:
     log = sess.get_log()
 
     if not log:
-        print("FastFold Agent: no exchanges in this session yet.")
+        print("Fastfold Agent: no exchanges in this session yet.")
         return
 
     if subcommand == "show":
-        print(f"FastFold session log (started {sess.started_at}):")
+        print(f"Fastfold session log (started {sess.started_at}):")
         for i, entry in enumerate(log, 1):
             print(f"\n--- [{i}] {entry['timestamp']} ---")
             print(f"  Prompt : {entry['prompt']}")
@@ -912,7 +912,7 @@ def _fastfold_log(tokens: list[str]) -> None:
         }
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
-        print(f"FastFold Agent: session exported to {path}")
+        print(f"Fastfold Agent: session exported to {path}")
         return
 
     print("Usage: fastfold log show|save [file.py]|export [file.json]")
@@ -930,7 +930,7 @@ def _save_session_log(sess, log: list, filename: Optional[str], output_dir: str 
         path = os.path.join(base, filename)
 
     lines = [
-        "# FastFold PyMOL Agent session log",
+        "# Fastfold PyMOL Agent session log",
         f"# Session started: {sess.started_at}",
         f"# Saved:           {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         "from pymol import cmd",
@@ -956,14 +956,14 @@ def _save_session_log(sess, log: list, filename: Optional[str], output_dir: str 
             f.write(content)
         path = fallback
 
-    print(f"FastFold Agent: session log saved to {path}")
+    print(f"Fastfold Agent: session log saved to {path}")
 
 
 def _print_help() -> None:
     print(
-        "FastFold PyMOL Agent usage:\n"
+        "Fastfold PyMOL Agent usage:\n"
         "  fastfold <prompt>                     ask the LLM and auto-execute\n"
-        "  fastfold ui                           open multiline FastFold Agent window\n"
+        "  fastfold ui                           open multiline Fastfold Agent window\n"
         "  fastfold dry <prompt>                 preview generated commands\n"
         "  fastfold save [file.py] <prompt>      run prompt and save script\n"
         "  fastfold save [file.py]               save last generated script\n"
@@ -973,7 +973,7 @@ def _print_help() -> None:
         "  fastfold setup                        guided setup (non-blocking)\n"
         "  fastfold setup <anthropic> <fastfold> non-interactive one-shot setup\n"
         "  fastfold setup anthropic <key>        update Anthropic key\n"
-        "  fastfold setup fastfold <key>         update FastFold key\n"
+        "  fastfold setup fastfold <key>         update Fastfold key\n"
         "  fastfold doctor                       verify setup health (keys, deps, skills)\n"
         "  fastfold agent on|off|status          toggle/show agent mode\n"
         "\n"
