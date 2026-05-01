@@ -126,24 +126,6 @@ if [[ -f "${REPO_ROOT}/setup.py" ]]; then
 fi
 
 PYMOL_SRC=""
-if [[ "${INSTALL_MODE}" == "full" ]]; then
-  LOCAL_PYMOL_SRC="$(cd "${REPO_ROOT}" && cd "../pymol-open-source" 2>/dev/null && pwd || true)"
-  if [[ -n "${LOCAL_PYMOL_SRC}" && -f "${LOCAL_PYMOL_SRC}/setup.py" ]]; then
-    PYMOL_SRC="${LOCAL_PYMOL_SRC}"
-  else
-    require_git
-    TMP_PYMOL_DIR="$(mktemp -d)"
-    CLEANUP_PATHS+=("${TMP_PYMOL_DIR}")
-    echo "==> Fetching PyMOL source from ${PYMOL_REPO_URL}"
-    git clone --progress --depth 1 "${PYMOL_REPO_URL}" "${TMP_PYMOL_DIR}/repo"
-    PYMOL_SRC="${TMP_PYMOL_DIR}/repo"
-  fi
-
-  if [[ -z "${PYMOL_SRC}" || ! -f "${PYMOL_SRC}/setup.py" ]]; then
-    echo "Error: Unable to resolve a valid PyMOL source checkout." >&2
-    exit 1
-  fi
-fi
 
 AGENT_INSTALL_MODE="local"
 if [[ -z "${LOCAL_AGENT_REPO}" || ! -f "${LOCAL_AGENT_REPO}/setup.py" ]]; then
@@ -154,7 +136,7 @@ echo "==> Using conda env: ${ENV_NAME}"
 if [[ "${INSTALL_MODE}" == "agent-only" ]]; then
   echo "==> Mode:            agent-only"
 else
-  echo "==> PyMOL source:    ${PYMOL_SRC}"
+  echo "==> PyMOL install:   auto-detect (skip if already installed)"
 fi
 if [[ "${AGENT_INSTALL_MODE}" == "local" ]]; then
   echo "==> Agent source:    ${LOCAL_AGENT_REPO} (editable)"
@@ -176,11 +158,32 @@ conda activate "${ENV_NAME}"
 python -m pip install --upgrade pip setuptools wheel
 
 if [[ "${INSTALL_MODE}" == "full" ]]; then
-  echo "==> Installing PyMOL build dependencies"
-  conda install -y -c conda-forge glew glm libpng freetype libxml2 libnetcdf pyqt
+  if python -c "import pymol" >/dev/null 2>&1; then
+    echo "==> PyMOL already importable in env '${ENV_NAME}' — skipping PyMOL reinstall"
+  else
+    LOCAL_PYMOL_SRC="$(cd "${REPO_ROOT}" && cd "../pymol-open-source" 2>/dev/null && pwd || true)"
+    if [[ -n "${LOCAL_PYMOL_SRC}" && -f "${LOCAL_PYMOL_SRC}/setup.py" ]]; then
+      PYMOL_SRC="${LOCAL_PYMOL_SRC}"
+    else
+      require_git
+      TMP_PYMOL_DIR="$(mktemp -d)"
+      CLEANUP_PATHS+=("${TMP_PYMOL_DIR}")
+      echo "==> Fetching PyMOL source from ${PYMOL_REPO_URL}"
+      git clone --progress --depth 1 "${PYMOL_REPO_URL}" "${TMP_PYMOL_DIR}/repo"
+      PYMOL_SRC="${TMP_PYMOL_DIR}/repo"
+    fi
 
-  echo "==> Installing PyMOL from source"
-  python -m pip install "${PYMOL_SRC}"
+    if [[ -z "${PYMOL_SRC}" || ! -f "${PYMOL_SRC}/setup.py" ]]; then
+      echo "Error: Unable to resolve a valid PyMOL source checkout." >&2
+      exit 1
+    fi
+
+    echo "==> Installing PyMOL build dependencies"
+    conda install -y -c conda-forge glew glm libpng freetype libxml2 libnetcdf pyqt
+
+    echo "==> Installing PyMOL from source"
+    python -m pip install "${PYMOL_SRC}"
+  fi
 fi
 
 if [[ "${AGENT_INSTALL_MODE}" == "local" ]]; then
